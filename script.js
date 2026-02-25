@@ -634,6 +634,41 @@ document.addEventListener('DOMContentLoaded', () => {
         switchFootballTab('matches');
     });
 
+    // Football sidebar resizer
+    (function() {
+        const resizer  = document.getElementById('footballResizer');
+        const sidebar  = resizer?.previousElementSibling;
+        if (!resizer || !sidebar) return;
+
+        let startX, startW;
+
+        resizer.addEventListener('mousedown', e => {
+            e.preventDefault();
+            startX = e.clientX;
+            startW = sidebar.getBoundingClientRect().width;
+            resizer.classList.add('is-dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', e => {
+            if (!resizer.classList.contains('is-dragging')) return;
+            const delta = e.clientX - startX;
+            const panel = sidebar.parentElement;
+            const panelW = panel.getBoundingClientRect().width;
+            const maxW = panelW * 0.7;
+            const newW = Math.min(maxW, Math.max(160, startW + delta));
+            sidebar.style.width = newW + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!resizer.classList.contains('is-dragging')) return;
+            resizer.classList.remove('is-dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        });
+    })();
+
     document.getElementById('saveMatchesBtn')?.addEventListener('click', saveMatchesToFile);
     document.getElementById('loadMatchesBtn')?.addEventListener('click', () => {
         document.getElementById('loadMatchesInput').click();
