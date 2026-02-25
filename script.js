@@ -893,6 +893,25 @@ async function predictGames() {
     }
 }
 
+function calcConsensus(approaches, gamePreds) {
+    const votes = { '1': 0, 'X': 0, '2': 0 };
+    let validCount = 0;
+    approaches.forEach((_, ai) => {
+        const pred = gamePreds[ai];
+        if (!pred) return;
+        const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
+        if (pred.predictedResult == null && h == null && d == null && a == null) return;
+        validCount++;
+        const outcome = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
+        votes[outcome]++;
+    });
+    if (validCount === 0) return { outcome: '?', votes, conflict: true };
+    const max = Math.max(votes['1'], votes['X'], votes['2']);
+    const winners = Object.entries(votes).filter(([, v]) => v === max);
+    const conflict = winners.length > 1;
+    return { outcome: conflict ? '~' : winners[0][0], votes, conflict };
+}
+
 function renderPredictPanel(approaches, allPredictions) {
     const container = document.getElementById('predictContainer');
     if (!container) return;
@@ -907,49 +926,99 @@ function renderPredictPanel(approaches, allPredictions) {
 
     const thead = document.createElement('thead');
     thead.innerHTML = `<tr>
-        <th colspan="2">HOME</th>
-        <th colspan="2">AWAY</th>
-        ${approaches.map(a => `<th title="${a.description}">${a.name.toUpperCase()}</th>`).join('')}
+        <th class="predict-row-num-header">#</th>
+        <th></th>
+        <th>HOME</th>
+        <th>AWAY</th>
+        <th></th>
+        <th class="predict-consensus-header">CONSENSUS</th>
+        <th></th>
     </tr>`;
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
     selectedGames.forEach((game, idx) => {
         const gamePreds = allPredictions[idx];
-        const tr = document.createElement('tr');
-        tr.className = 'predict-row';
+        const consensus = calcConsensus(approaches, gamePreds);
 
-        let cells = `
+        let consensusCls;
+        if (consensus.conflict)        consensusCls = 'predict-cell--conflict';
+        else if (consensus.outcome === '1') consensusCls = 'predict-cell--home';
+        else if (consensus.outcome === 'X') consensusCls = 'predict-cell--draw';
+        else                                consensusCls = 'predict-cell--away';
+
+        const voteStr = `1·${consensus.votes['1']}  X·${consensus.votes['X']}  2·${consensus.votes['2']}`;
+
+        // ── Main (collapsed) row ──────────────────────────────────────────
+        const mainTr = document.createElement('tr');
+        mainTr.className = 'predict-row predict-row--main';
+        mainTr.innerHTML = `
+            <td class="predict-row-num">${idx + 1}</td>
             <td><img class="game-team-logo" src="${game.homeTeamLogo}" alt=""></td>
             <td class="predict-team-name">${game.homeTeamName.toUpperCase()}</td>
             <td class="predict-team-name">${game.awayTeamName.toUpperCase()}</td>
-            <td><img class="game-team-logo" src="${game.awayTeamLogo}" alt=""></td>`;
+            <td><img class="game-team-logo" src="${game.awayTeamLogo}" alt=""></td>
+            <td class="predict-cell predict-consensus-cell ${consensusCls}">
+                <span class="predict-outcome">${consensus.outcome}</span>
+                <span class="predict-votes">${voteStr}</span>
+            </td>
+            <td class="predict-expand-btn" title="SHOW APPROACHES">&#9654;</td>`;
 
-        approaches.forEach((_, ai) => {
+        // ── Detail (expanded) row ─────────────────────────────────────────
+        const detailTr = document.createElement('tr');
+        detailTr.className = 'predict-detail-row';
+        detailTr.style.display = 'none';
+
+        const detailRows = approaches.map((approach, ai) => {
             const pred = gamePreds[ai];
-            if (!pred) {
-                cells += `<td class="predict-cell predict-cell--error">N/A</td>`;
-                return;
-            }
+            if (!pred) return `
+                <tr>
+                    <td class="predict-approach-name" title="${approach.description}">${approach.name.toUpperCase()}</td>
+                    <td class="predict-cell predict-cell--error">N/A</td>
+                    <td class="predict-detail-probs">—</td>
+                </tr>`;
             const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
             const outcome = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
             let cls;
             if (outcome === '1')      cls = 'predict-cell--home';
             else if (outcome === 'X') cls = 'predict-cell--draw';
             else                      cls = 'predict-cell--away';
+            return `
+                <tr>
+                    <td class="predict-approach-name" title="${approach.description}">${approach.name.toUpperCase()}</td>
+                    <td class="predict-cell ${cls}"><span class="predict-outcome">${outcome}</span></td>
+                    <td class="predict-detail-probs">
+                        <span class="${outcome === '1' ? 'predict-detail-prob--active' : ''}">1: ${(h * 100).toFixed(0)}%</span>
+                        <span class="${outcome === 'X' ? 'predict-detail-prob--active' : ''}">X: ${(d * 100).toFixed(0)}%</span>
+                        <span class="${outcome === '2' ? 'predict-detail-prob--active' : ''}">2: ${(a * 100).toFixed(0)}%</span>
+                    </td>
+                </tr>`;
+        }).join('');
 
-            cells += `<td class="predict-cell ${cls}">
-                <span class="predict-outcome">${outcome}</span>
-                <span class="predict-probs">
-                    <span>1: ${(h * 100).toFixed(0)}%</span>
-                    <span>X: ${(d * 100).toFixed(0)}%</span>
-                    <span>2: ${(a * 100).toFixed(0)}%</span>
-                </span>
-            </td>`;
+        detailTr.innerHTML = `<td colspan="7">
+            <div class="predict-detail-panel">
+                <table class="predict-detail-table">
+                    <thead><tr>
+                        <th>APPROACH</th>
+                        <th>RESULT</th>
+                        <th>PROBABILITIES</th>
+                    </tr></thead>
+                    <tbody>${detailRows}</tbody>
+                </table>
+            </div>
+        </td>`;
+
+        // ── Toggle on click ───────────────────────────────────────────────
+        const expandBtn = mainTr.querySelector('.predict-expand-btn');
+        mainTr.addEventListener('click', () => {
+            const isOpen = detailTr.style.display !== 'none';
+            detailTr.style.display = isOpen ? 'none' : '';
+            mainTr.classList.toggle('predict-row--expanded', !isOpen);
+            expandBtn.innerHTML = isOpen ? '&#9654;' : '&#9660;';
         });
 
-        tr.innerHTML = cells;
-        tbody.appendChild(tr);
+        tbody.appendChild(mainTr);
+        tbody.appendChild(detailTr);
     });
 
     table.appendChild(tbody);

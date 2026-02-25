@@ -1507,18 +1507,46 @@ body {
     white-space: nowrap;
 }
 
-.predict-row {
-    border-bottom: 1px solid rgba(30, 42, 94, 0.3);
+.predict-row-num-header {
+    width: 28px;
+    text-align: center;
 }
 
-.predict-row:hover {
-    background: rgba(0, 255, 249, 0.03);
+.predict-row-num {
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--color-text-dim);
+    padding: 0 6px !important;
+    vertical-align: middle;
+    user-select: none;
+}
+
+.predict-consensus-header {
+    min-width: 100px;
+}
+
+.predict-row {
+    border-bottom: 1px solid rgba(30, 42, 94, 0.3);
 }
 
 .predict-row td {
     padding: 8px 6px;
     vertical-align: middle;
     white-space: nowrap;
+}
+
+.predict-row--main {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.predict-row--main:hover {
+    background: rgba(0, 255, 249, 0.03);
+}
+
+.predict-row--expanded {
+    background: rgba(0, 255, 249, 0.04);
 }
 
 .predict-team-name {
@@ -1530,6 +1558,10 @@ body {
 .predict-cell {
     text-align: center;
     padding: 6px 10px !important;
+}
+
+.predict-consensus-cell {
+    min-width: 100px;
 }
 
 .predict-cell--home {
@@ -1547,6 +1579,11 @@ body {
     border-left: 2px solid rgba(255, 0, 255, 0.4);
 }
 
+.predict-cell--conflict {
+    background: rgba(100, 100, 120, 0.08);
+    border-left: 2px solid rgba(150, 150, 170, 0.3);
+}
+
 .predict-cell--error {
     color: var(--color-text-dim);
     opacity: 0.4;
@@ -1560,28 +1597,103 @@ body {
     line-height: 1;
 }
 
-.predict-cell--home .predict-outcome { color: var(--color-primary); text-shadow: var(--glow-primary); }
-.predict-cell--draw .predict-outcome { color: var(--color-warning, #ffaa00); }
-.predict-cell--away .predict-outcome { color: var(--color-secondary); text-shadow: var(--glow-secondary); }
+.predict-cell--home .predict-outcome    { color: var(--color-primary);   text-shadow: var(--glow-primary); }
+.predict-cell--draw .predict-outcome    { color: var(--color-warning, #ffaa00); }
+.predict-cell--away .predict-outcome    { color: var(--color-secondary);  text-shadow: var(--glow-secondary); }
+.predict-cell--conflict .predict-outcome { color: var(--color-text-dim); opacity: 0.6; }
 
-.predict-probs {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    margin-top: 4px;
-}
-
-.predict-probs span {
+.predict-votes {
     display: block;
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 9px;
     letter-spacing: 1px;
-    opacity: 0.75;
-    font-family: 'IBM Plex Mono', monospace;
+    margin-top: 4px;
+    opacity: 0.6;
 }
 
-.predict-cell--home .predict-probs span { color: var(--color-primary); }
-.predict-cell--draw .predict-probs span { color: var(--color-warning, #ffaa00); }
-.predict-cell--away .predict-probs span { color: var(--color-secondary); }
+.predict-expand-btn {
+    text-align: center;
+    font-size: 10px;
+    color: var(--color-text-dim);
+    padding: 0 10px !important;
+    user-select: none;
+    transition: color 0.15s;
+}
+
+.predict-row--main:hover .predict-expand-btn {
+    color: var(--color-primary);
+}
+
+/* ── Predict detail row ──────────────────────────────────────────────────── */
+.predict-detail-row > td {
+    padding: 0 !important;
+}
+
+.predict-detail-panel {
+    padding: 10px 16px 14px 40px;
+    background: rgba(0, 0, 0, 0.25);
+    border-top: 1px solid rgba(0, 255, 249, 0.08);
+    border-bottom: 1px solid rgba(0, 255, 249, 0.08);
+}
+
+.predict-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.predict-detail-table thead th {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--color-text-dim);
+    padding: 4px 8px;
+    border-bottom: 1px solid rgba(0, 255, 249, 0.1);
+    text-align: left;
+    font-weight: normal;
+}
+
+.predict-detail-table tbody tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.predict-detail-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.predict-detail-table tbody tr:hover {
+    background: rgba(0, 255, 249, 0.02);
+}
+
+.predict-detail-table .predict-outcome {
+    font-size: 18px;
+}
+
+.predict-approach-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--color-text-dim);
+    padding: 6px 8px;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.predict-detail-probs {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    padding: 6px 8px;
+    letter-spacing: 1px;
+    color: var(--color-text-dim);
+    display: flex;
+    gap: 12px;
+}
+
+.predict-detail-prob--active {
+    color: var(--color-primary);
+}
 
 /* ── Rounds panel ──────────────────────────────────────────────────────────── */
 .football-rounds-panel {
