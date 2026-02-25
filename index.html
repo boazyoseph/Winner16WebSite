@@ -224,6 +224,9 @@
                         <button class="football-tab-btn" id="tabBtnMatches">
                             MATCHES <span class="matches-badge" id="matchesBadge" style="display:none">0</span>
                         </button>
+                        <button class="football-tab-btn" id="tabBtnPredict" style="display:none">
+                            PREDICT <span class="football-tab-close" id="closePredictTabBtn">×</span>
+                        </button>
                     </div>
 
                     <!-- Info panel -->
@@ -241,12 +244,20 @@
                         <div id="gamesContainer"></div>
                     </div>
 
+                    <!-- Predict panel -->
+                    <div class="football-rounds-panel" id="footballPredictPanel" style="display:none">
+                        <div id="predictContainer">
+                            <div class="football-placeholder">CLICK PREDICT GAMES TO RUN ANALYSIS</div>
+                        </div>
+                    </div>
+
                     <!-- Matches panel -->
                     <div class="football-rounds-panel" id="footballMatchesPanel" style="display:none">
                         <div class="matches-toolbar">
                             <button class="matches-toolbar-btn" id="saveMatchesBtn">[ SAVE FILE ]</button>
                             <button class="matches-toolbar-btn" id="loadMatchesBtn">[ LOAD FILE ]</button>
                             <input type="file" id="loadMatchesInput" accept=".json" style="display:none">
+                            <button class="matches-toolbar-btn matches-toolbar-btn--predict" id="predictGamesBtn">[ PREDICT GAMES ]</button>
                         </div>
                         <div id="matchesContainer">
                             <div class="football-placeholder">NO GAMES SELECTED</div>

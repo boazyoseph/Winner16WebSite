@@ -6,9 +6,10 @@
     --color-primary: #00fff9;
     --color-secondary: #ff00ff;
     --color-accent: #00ff00;
-    --color-text: #e0e0e0;
-    --color-text-dim: #808080;
+    --color-text: #f0f4ff;
+    --color-text-dim: #a0aac0;
     --color-danger: #ff3366;
+    --color-warning: #ffaa00;
 
     /* Effects */
     --glow-primary: 0 0 10px rgba(0, 255, 249, 0.5), 0 0 20px rgba(0, 255, 249, 0.3), 0 0 30px rgba(0, 255, 249, 0.1);
@@ -1452,6 +1453,106 @@ body {
     color: var(--color-primary);
     box-shadow: 0 0 10px rgba(0, 255, 249, 0.25);
 }
+
+.matches-toolbar-btn--predict {
+    border-color: var(--color-secondary);
+    color: var(--color-secondary);
+    margin-left: auto;
+}
+
+.matches-toolbar-btn--predict:hover {
+    border-color: var(--color-secondary);
+    color: var(--color-secondary);
+    box-shadow: 0 0 10px rgba(255, 0, 255, 0.3);
+}
+
+/* ── Predict table ───────────────────────────────────────────────────────── */
+.predict-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.predict-table thead th {
+    padding: 10px 8px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--color-primary);
+    text-shadow: var(--glow-primary);
+    border-bottom: 1px solid var(--color-border);
+    text-align: center;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.predict-row {
+    border-bottom: 1px solid rgba(30, 42, 94, 0.3);
+}
+
+.predict-row:hover {
+    background: rgba(0, 255, 249, 0.03);
+}
+
+.predict-row td {
+    padding: 8px 6px;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.predict-team-name {
+    color: var(--color-text);
+    font-size: 11px;
+    letter-spacing: 1px;
+}
+
+.predict-cell {
+    text-align: center;
+    padding: 6px 10px !important;
+}
+
+.predict-cell--home {
+    background: rgba(0, 255, 249, 0.1);
+    border-left: 2px solid rgba(0, 255, 249, 0.4);
+}
+
+.predict-cell--draw {
+    background: rgba(255, 170, 0, 0.08);
+    border-left: 2px solid rgba(255, 170, 0, 0.4);
+}
+
+.predict-cell--away {
+    background: rgba(255, 0, 255, 0.1);
+    border-left: 2px solid rgba(255, 0, 255, 0.4);
+}
+
+.predict-cell--error {
+    color: var(--color-text-dim);
+    opacity: 0.4;
+    font-size: 11px;
+}
+
+.predict-outcome {
+    display: block;
+    font-family: 'VT323', monospace;
+    font-size: 24px;
+    line-height: 1;
+}
+
+.predict-cell--home .predict-outcome { color: var(--color-primary); text-shadow: var(--glow-primary); }
+.predict-cell--draw .predict-outcome { color: var(--color-warning, #ffaa00); }
+.predict-cell--away .predict-outcome { color: var(--color-secondary); text-shadow: var(--glow-secondary); }
+
+.predict-prob {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 1px;
+    margin-top: 2px;
+    opacity: 0.75;
+}
+
+.predict-cell--home .predict-prob { color: var(--color-primary); }
+.predict-cell--draw .predict-prob { color: var(--color-warning, #ffaa00); }
+.predict-cell--away .predict-prob { color: var(--color-secondary); }
 
 /* ── Rounds panel ──────────────────────────────────────────────────────────── */
 .football-rounds-panel {

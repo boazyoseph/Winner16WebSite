@@ -622,6 +622,18 @@ document.addEventListener('DOMContentLoaded', () => {
         switchFootballTab('matches');
     });
 
+    document.getElementById('predictGamesBtn')?.addEventListener('click', predictGames);
+    document.getElementById('tabBtnPredict')?.addEventListener('click', e => {
+        if (e.target.id === 'closePredictTabBtn' || e.target.closest('#closePredictTabBtn')) return;
+        switchFootballTab('predict');
+    });
+    document.getElementById('closePredictTabBtn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        const tabBtn = document.getElementById('tabBtnPredict');
+        if (tabBtn) tabBtn.style.display = 'none';
+        switchFootballTab('matches');
+    });
+
     document.getElementById('saveMatchesBtn')?.addEventListener('click', saveMatchesToFile);
     document.getElementById('loadMatchesBtn')?.addEventListener('click', () => {
         document.getElementById('loadMatchesInput').click();
@@ -796,6 +808,114 @@ function resetTtt() {
     renderTttBoard();
 }
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ── Prediction API ────────────────────────────────────────────────────────────
+const PREDICTION_API_BASE = 'http://localhost:12410';
+let cachedApproaches = null;
+
+async function loadPredictionApproaches() {
+    if (cachedApproaches) return cachedApproaches;
+    const res = await fetch(`${PREDICTION_API_BASE}/api/Prediction/approaches`, {
+        headers: { 'accept': '*/*' }
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    cachedApproaches = await res.json();
+    return cachedApproaches;
+}
+
+async function predictGames() {
+    if (!selectedGames.length) {
+        showError('NO GAMES SELECTED');
+        return;
+    }
+    const btn = document.getElementById('predictGamesBtn');
+    if (btn) { btn.textContent = '[ LOADING... ]'; btn.disabled = true; }
+
+    try {
+        const approaches = await loadPredictionApproaches();
+
+        const allPredictions = await Promise.all(
+            selectedGames.map(game =>
+                Promise.all(
+                    approaches.map(approach =>
+                        fetch(`${PREDICTION_API_BASE}/api/Prediction/predict?homeTeamId=${game.teamHomeId}&awayTeamId=${game.teamOutId}&seasonId=${game.seasonId}&approach=${approach.index}`, {
+                            headers: { 'accept': '*/*' }
+                        }).then(r => r.ok ? r.json() : null).catch(() => null)
+                    )
+                )
+            )
+        );
+
+        renderPredictPanel(approaches, allPredictions);
+        const tabBtn = document.getElementById('tabBtnPredict');
+        if (tabBtn) tabBtn.style.display = '';
+        switchFootballTab('predict');
+    } catch (err) {
+        showError('PREDICTION FAILED');
+        console.error(err);
+    } finally {
+        if (btn) { btn.textContent = '[ PREDICT GAMES ]'; btn.disabled = false; }
+    }
+}
+
+function renderPredictPanel(approaches, allPredictions) {
+    const container = document.getElementById('predictContainer');
+    if (!container) return;
+
+    if (!selectedGames.length) {
+        container.innerHTML = '<div class="football-placeholder">NO GAMES TO PREDICT</div>';
+        return;
+    }
+
+    const table = document.createElement('table');
+    table.className = 'predict-table';
+
+    const thead = document.createElement('thead');
+    thead.innerHTML = `<tr>
+        <th colspan="2">HOME</th>
+        <th colspan="2">AWAY</th>
+        ${approaches.map(a => `<th title="${a.description}">${a.name.toUpperCase()}</th>`).join('')}
+    </tr>`;
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    selectedGames.forEach((game, idx) => {
+        const gamePreds = allPredictions[idx];
+        const tr = document.createElement('tr');
+        tr.className = 'predict-row';
+
+        let cells = `
+            <td><img class="game-team-logo" src="${game.homeTeamLogo}" alt=""></td>
+            <td class="predict-team-name">${game.homeTeamName.toUpperCase()}</td>
+            <td class="predict-team-name">${game.awayTeamName.toUpperCase()}</td>
+            <td><img class="game-team-logo" src="${game.awayTeamLogo}" alt=""></td>`;
+
+        approaches.forEach((_, ai) => {
+            const pred = gamePreds[ai];
+            if (!pred) {
+                cells += `<td class="predict-cell predict-cell--error">N/A</td>`;
+                return;
+            }
+            const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
+            let outcome, prob, cls;
+            if (h >= d && h >= a)      { outcome = '1'; prob = h; cls = 'predict-cell--home'; }
+            else if (d >= h && d >= a) { outcome = 'X'; prob = d; cls = 'predict-cell--draw'; }
+            else                       { outcome = '2'; prob = a; cls = 'predict-cell--away'; }
+
+            cells += `<td class="predict-cell ${cls}">
+                <span class="predict-outcome">${outcome}</span>
+                <span class="predict-prob">${(prob * 100).toFixed(0)}%</span>
+            </td>`;
+        });
+
+        tr.innerHTML = cells;
+        tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    container.innerHTML = '';
+    container.appendChild(table);
+}
 
 // ── Football API ──────────────────────────────────────────────────────────────
 const FOOTBALL_API_BASE = 'http://localhost:12410';
@@ -1024,11 +1144,13 @@ function switchFootballTab(tabName) {
         info:    document.getElementById('footballContent'),
         rounds:  document.getElementById('footballRoundsPanel'),
         matches: document.getElementById('footballMatchesPanel'),
+        predict: document.getElementById('footballPredictPanel'),
     };
     const tabs = {
         info:    document.getElementById('tabBtnInfo'),
         rounds:  document.getElementById('tabBtnRounds'),
         matches: document.getElementById('tabBtnMatches'),
+        predict: document.getElementById('tabBtnPredict'),
     };
 
     Object.values(panels).forEach(p => { if (p) p.style.display = 'none'; });
