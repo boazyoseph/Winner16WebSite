@@ -622,6 +622,15 @@ document.addEventListener('DOMContentLoaded', () => {
         switchFootballTab('matches');
     });
 
+    document.getElementById('saveMatchesBtn')?.addEventListener('click', saveMatchesToFile);
+    document.getElementById('loadMatchesBtn')?.addEventListener('click', () => {
+        document.getElementById('loadMatchesInput').click();
+    });
+    document.getElementById('loadMatchesInput')?.addEventListener('change', e => {
+        if (e.target.files[0]) loadMatchesFromFile(e.target.files[0]);
+        e.target.value = '';
+    });
+
     // Round navigation
     document.getElementById('roundPrevBtn')?.addEventListener('click', () => {
         if (currentRound <= 1 || !currentSeasonId) return;
@@ -1099,6 +1108,39 @@ function removeSelectedGame(idx) {
     if (roundsPanel && roundsPanel.style.display !== 'none' && currentSeasonId) {
         loadGames(currentSeasonId, currentRound);
     }
+}
+
+// ── Matches file save / load ──────────────────────────────────────────────────
+function saveMatchesToFile() {
+    if (!selectedGames.length) {
+        showError('NO GAMES TO SAVE');
+        return;
+    }
+    const blob = new Blob([JSON.stringify(selectedGames, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'matches.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showSuccess('MATCHES SAVED');
+}
+
+function loadMatchesFromFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!Array.isArray(data)) throw new Error('Invalid format');
+            selectedGames = data;
+            renderMatchesPanel();
+            updateMatchesBadge();
+            showSuccess(`LOADED ${data.length} MATCH${data.length !== 1 ? 'ES' : ''}`);
+        } catch {
+            showError('INVALID FILE FORMAT');
+        }
+    };
+    reader.readAsText(file);
 }
 
 async function loadGames(seasonId, round) {

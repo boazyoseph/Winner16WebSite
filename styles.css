@@ -1424,6 +1424,35 @@ body {
     color: var(--color-secondary);
 }
 
+/* ── Matches toolbar ─────────────────────────────────────────────────────── */
+.matches-toolbar {
+    display: flex;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.matches-toolbar-btn {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-dim);
+    padding: 6px 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.matches-toolbar-btn:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    box-shadow: 0 0 10px rgba(0, 255, 249, 0.25);
+}
+
 /* ── Rounds panel ──────────────────────────────────────────────────────────── */
 .football-rounds-panel {
     flex: 1;
