@@ -1320,8 +1320,8 @@ body {
     content: '';
     position: absolute;
     inset: 0;
-    background: url('assets/football-player.png') center bottom / contain no-repeat;
-    opacity: 0.12;
+    background: url('assets/football-bg.png') center center / cover no-repeat;
+    opacity: 0.18;
     pointer-events: none;
     z-index: 0;
 }
@@ -1542,17 +1542,24 @@ body {
 .predict-cell--draw .predict-outcome { color: var(--color-warning, #ffaa00); }
 .predict-cell--away .predict-outcome { color: var(--color-secondary); text-shadow: var(--glow-secondary); }
 
-.predict-prob {
-    display: block;
-    font-size: 10px;
-    letter-spacing: 1px;
-    margin-top: 2px;
-    opacity: 0.75;
+.predict-probs {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin-top: 4px;
 }
 
-.predict-cell--home .predict-prob { color: var(--color-primary); }
-.predict-cell--draw .predict-prob { color: var(--color-warning, #ffaa00); }
-.predict-cell--away .predict-prob { color: var(--color-secondary); }
+.predict-probs span {
+    display: block;
+    font-size: 9px;
+    letter-spacing: 1px;
+    opacity: 0.75;
+    font-family: 'IBM Plex Mono', monospace;
+}
+
+.predict-cell--home .predict-probs span { color: var(--color-primary); }
+.predict-cell--draw .predict-probs span { color: var(--color-warning, #ffaa00); }
+.predict-cell--away .predict-probs span { color: var(--color-secondary); }
 
 /* ── Rounds panel ──────────────────────────────────────────────────────────── */
 .football-rounds-panel {

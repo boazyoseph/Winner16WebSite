@@ -897,14 +897,19 @@ function renderPredictPanel(approaches, allPredictions) {
                 return;
             }
             const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
-            let outcome, prob, cls;
-            if (h >= d && h >= a)      { outcome = '1'; prob = h; cls = 'predict-cell--home'; }
-            else if (d >= h && d >= a) { outcome = 'X'; prob = d; cls = 'predict-cell--draw'; }
-            else                       { outcome = '2'; prob = a; cls = 'predict-cell--away'; }
+            const outcome = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
+            let cls;
+            if (outcome === '1')      cls = 'predict-cell--home';
+            else if (outcome === 'X') cls = 'predict-cell--draw';
+            else                      cls = 'predict-cell--away';
 
             cells += `<td class="predict-cell ${cls}">
                 <span class="predict-outcome">${outcome}</span>
-                <span class="predict-prob">${(prob * 100).toFixed(0)}%</span>
+                <span class="predict-probs">
+                    <span>1: ${(h * 100).toFixed(0)}%</span>
+                    <span>X: ${(d * 100).toFixed(0)}%</span>
+                    <span>2: ${(a * 100).toFixed(0)}%</span>
+                </span>
             </td>`;
         });
 
@@ -1188,7 +1193,6 @@ function renderMatchesPanel() {
         <thead>
             <tr>
                 <th colspan="2">HOME</th>
-                <th>FT</th>
                 <th colspan="2">AWAY</th>
                 <th>RND</th>
                 <th></th>
@@ -1203,7 +1207,6 @@ function renderMatchesPanel() {
         tr.innerHTML = `
             <td><img class="game-team-logo" src="${game.homeTeamLogo}" alt=""></td>
             <td>${game.homeTeamName.toUpperCase()}</td>
-            <td class="game-score">${game.homeFullTimeScore}-${game.outFullTimeScore}</td>
             <td>${game.awayTeamName.toUpperCase()}</td>
             <td><img class="game-team-logo" src="${game.awayTeamLogo}" alt=""></td>
             <td class="game-status">${game.round}</td>
@@ -1295,7 +1298,6 @@ async function loadGames(seasonId, round) {
                 <tr>
                     <th colspan="2">HOME</th>
                     <th>HT</th>
-                    <th>FT</th>
                     <th colspan="2">AWAY</th>
                     <th></th>
                 </tr>
@@ -1317,7 +1319,6 @@ async function loadGames(seasonId, round) {
                 <td><img class="game-team-logo" src="${game.homeTeamLogo}" alt=""></td>
                 <td>${game.homeTeamName.toUpperCase()}</td>
                 <td class="game-score-ht">${game.homeHalfTimeScore}-${game.outHalfTimeScore}</td>
-                <td class="game-score">${game.homeFullTimeScore}-${game.outFullTimeScore}</td>
                 <td>${game.awayTeamName.toUpperCase()}</td>
                 <td><img class="game-team-logo" src="${game.awayTeamLogo}" alt=""></td>
                 <td class="game-status">${game.status}</td>`;
