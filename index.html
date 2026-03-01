@@ -135,23 +135,54 @@
             <div class="toolbar" id="toolbar" style="display: none;">
                 <div class="toolbar-left">
                     <button class="toolbar-btn" id="homeBtn">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M1 6.5L7 1.5L13 6.5V13H9.5V9.5H4.5V13H1V6.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+                        </svg>
                         <span>HOME</span>
                     </button>
                     <button class="toolbar-btn" id="footballBtn">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/>
+                            <path d="M7 3.5L9 5.5L8 8H6L5 5.5Z" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/>
+                            <path d="M5 5.5L2.5 5M9 5.5L11.5 5M8 8L9.5 10.5M6 8L4.5 10.5" stroke="currentColor" stroke-width="0.9" stroke-linecap="round"/>
+                        </svg>
                         <span>FOOTBALL</span>
                     </button>
                     <button class="toolbar-btn" id="dashboardBtn">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="1" y="1" width="5" height="5" stroke="currentColor" stroke-width="1.3"/>
+                            <rect x="8" y="1" width="5" height="5" stroke="currentColor" stroke-width="1.3"/>
+                            <rect x="1" y="8" width="5" height="5" stroke="currentColor" stroke-width="1.3"/>
+                            <rect x="8" y="8" width="5" height="5" stroke="currentColor" stroke-width="1.3"/>
+                        </svg>
                         <span>DASHBOARD</span>
                     </button>
                 </div>
                 <div class="toolbar-right">
                     <button class="toolbar-btn toolbar-btn-accent" id="settingsBtn">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.3"/>
+                            <path d="M7 1.5V3M7 11V12.5M1.5 7H3M11 7H12.5M3.1 3.1L4.16 4.16M9.84 9.84L10.9 10.9M10.9 3.1L9.84 4.16M4.16 9.84L3.1 10.9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                        </svg>
                         <span>SETTINGS</span>
                     </button>
                     <button class="toolbar-btn toolbar-btn-accent" id="gamesBtn">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="1" y="4.5" width="12" height="7" rx="2" stroke="currentColor" stroke-width="1.3"/>
+                            <line x1="4" y1="4.5" x2="4" y2="2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            <circle cx="4" cy="2" r="1" fill="currentColor"/>
+                            <line x1="7.5" y1="7" x2="7.5" y2="9.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                            <line x1="6.25" y1="8.25" x2="8.75" y2="8.25" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                            <circle cx="10.5" cy="8.25" r="1" fill="currentColor"/>
+                        </svg>
                         <span>GAMES</span>
                     </button>
                     <button class="toolbar-btn toolbar-btn-accent" id="helpBtn">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/>
+                            <path d="M5.5 5.5C5.5 4.67 6.17 4 7 4C7.83 4 8.5 4.67 8.5 5.5C8.5 6.6 7 6.8 7 8.25" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            <circle cx="7" cy="10" r="0.8" fill="currentColor"/>
+                        </svg>
                         <span>HELP</span>
                     </button>
                 </div>
@@ -228,6 +259,15 @@
                         <button class="football-tab-btn" id="tabBtnPredict" style="display:none">
                             PREDICT <span class="football-tab-close" id="closePredictTabBtn">×</span>
                         </button>
+                        <button class="football-tab-btn" id="tabBtnPredictFull" style="display:none">
+                            PREDICT FULL <span class="football-tab-close" id="closePredictFullTabBtn">×</span>
+                        </button>
+                        <button class="football-tab-btn" id="tabBtnSimulation">
+                            SIMULATION
+                        </button>
+                        <button class="football-tab-btn" id="tabBtnSimResults">
+                            SIM RESULTS
+                        </button>
                     </div>
 
                     <!-- Info panel -->
@@ -243,6 +283,13 @@
                             <button class="round-nav-btn" id="roundNextBtn">NEXT ▶</button>
                         </div>
                         <div id="gamesContainer"></div>
+                    </div>
+
+                    <!-- Predict Full panel -->
+                    <div class="football-rounds-panel" id="footballPredictFullPanel" style="display:none">
+                        <div id="predictFullContainer">
+                            <div class="football-placeholder">CLICK PREDICT GAMES TO RUN ANALYSIS</div>
+                        </div>
                     </div>
 
                     <!-- Predict panel -->
@@ -262,6 +309,139 @@
                         </div>
                         <div id="matchesContainer">
                             <div class="football-placeholder">NO GAMES SELECTED</div>
+                        </div>
+                    </div>
+
+                    <!-- Sim Results panel -->
+                    <div class="football-rounds-panel" id="footballSimResultsPanel" style="display:none">
+                        <div class="simulation-toolbar">
+                            <div class="simulation-control">
+                                <label class="football-dropdown-label" for="simResultsApproachSelect">APPROACH</label>
+                                <select class="football-select" id="simResultsApproachSelect">
+                                    <option value="">-- All Approaches --</option>
+                                </select>
+                            </div>
+                            <button class="matches-toolbar-btn sim-run-btn" id="simResultsLoadBtn">[ LOAD RESULTS ]</button>
+                        </div>
+                        <div id="simResultsContainer">
+                            <div class="football-placeholder">SELECT FILTERS AND CLICK LOAD</div>
+                        </div>
+                    </div>
+
+                    <!-- Simulation panel -->
+                    <div class="football-rounds-panel" id="footballSimulationPanel" style="display:none">
+                        <div class="simulation-toolbar">
+                            <div class="simulation-control">
+                                <label class="football-dropdown-label" for="simApproachSelect">APPROACH</label>
+                                <select class="football-select" id="simApproachSelect">
+                                    <option value="">-- Loading... --</option>
+                                </select>
+                            </div>
+                            <button class="matches-toolbar-btn sim-run-btn" id="simRunBtn">[ RUN SIMULATION ]</button>
+                            <button class="matches-toolbar-btn sim-save-btn" id="simSaveBtn" disabled>[ SAVE RESULTS ]</button>
+                            <button class="matches-toolbar-btn sim-run-all-btn" id="simRunAllBtn">[ RUN BATCH ]</button>
+                        </div>
+
+                        <!-- Running Batch Status Pane (top) -->
+                        <div class="sim-status-pane" id="simStatusPane">
+                            <!-- Multi-progress (always visible, empty on load) -->
+                            <div class="sim-all-progress" id="simAllProgress">
+                                <div class="sim-all-header">
+                                    <span class="sim-all-title" id="simAllTitle">BATCH STATUS</span>
+                                    <button class="sim-cancel-btn" id="simCancelBtn" style="display:none">[ CANCEL ]</button>
+                                </div>
+                                <div class="sim-all-rows">
+                                    <div class="sim-all-row">
+                                        <span class="sim-all-row-label">LEAGUE</span>
+                                        <div class="sim-progress-track">
+                                            <div class="sim-progress-fill" id="simAllFillLeague"></div>
+                                        </div>
+                                        <span class="sim-all-row-info" id="simAllInfoLeague">—</span>
+                                    </div>
+                                    <div class="sim-all-row">
+                                        <span class="sim-all-row-label">SEASON</span>
+                                        <div class="sim-progress-track">
+                                            <div class="sim-progress-fill" id="simAllFillSeason"></div>
+                                        </div>
+                                        <span class="sim-all-row-info" id="simAllInfoSeason">—</span>
+                                    </div>
+                                    <div class="sim-all-row">
+                                        <span class="sim-all-row-label">APPROACH</span>
+                                        <div class="sim-progress-track">
+                                            <div class="sim-progress-fill" id="simAllFillApproach"></div>
+                                        </div>
+                                        <span class="sim-all-row-info" id="simAllInfoApproach">—</span>
+                                    </div>
+                                    <div class="sim-all-row sim-all-row--total">
+                                        <span class="sim-all-row-label">TOTAL</span>
+                                        <div class="sim-progress-track">
+                                            <div class="sim-progress-fill sim-progress-fill--accent" id="simAllFillTotal"></div>
+                                        </div>
+                                        <span class="sim-all-row-info" id="simAllInfoTotal">—</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Single-run progress (shown during individual simulation) -->
+                            <div class="sim-progress" id="simProgress" style="display:none">
+                                <div class="sim-progress-header">
+                                    <span class="sim-progress-label" id="simProgressLabel">INITIALIZING...</span>
+                                    <span class="sim-progress-stats" id="simProgressStats"></span>
+                                </div>
+                                <div class="sim-progress-track">
+                                    <div class="sim-progress-fill" id="simProgressFill"></div>
+                                </div>
+                            </div>
+
+                            <!-- Results -->
+                            <div id="simulationContainer">
+                                <div class="football-placeholder">SELECT AN APPROACH TO BEGIN SIMULATION</div>
+                            </div>
+                        </div>
+
+                        <!-- Vertical resizer between status pane and selection pane -->
+                        <div class="sim-v-resizer" id="simVResizer"></div>
+
+                        <!-- Batch Selection Pane (bottom, fills remaining space with scrollbar) -->
+                        <div class="sim-batch-config" id="simBatchConfig">
+                            <div class="sim-batch-cols">
+                                <div class="sim-batch-col">
+                                    <div class="sim-batch-col-header">
+                                        <span class="sim-batch-col-title">LEAGUES</span>
+                                        <div class="sim-batch-col-actions">
+                                            <button class="sim-batch-action-btn" id="simBatchLeaguesAll">ALL</button>
+                                            <button class="sim-batch-action-btn" id="simBatchLeaguesClear">NONE</button>
+                                        </div>
+                                    </div>
+                                    <div class="sim-batch-list" id="simBatchLeagueList">
+                                        <div class="sim-batch-placeholder">NO COUNTRY SELECTED</div>
+                                    </div>
+                                </div>
+                                <div class="sim-batch-col">
+                                    <div class="sim-batch-col-header">
+                                        <span class="sim-batch-col-title">SEASONS</span>
+                                        <div class="sim-batch-col-actions">
+                                            <button class="sim-batch-action-btn" id="simBatchSeasonsAll">ALL</button>
+                                            <button class="sim-batch-action-btn" id="simBatchSeasonsClear">NONE</button>
+                                        </div>
+                                    </div>
+                                    <div class="sim-batch-list" id="simBatchSeasonList">
+                                        <div class="sim-batch-placeholder">SELECT LEAGUES FIRST</div>
+                                    </div>
+                                </div>
+                                <div class="sim-batch-col">
+                                    <div class="sim-batch-col-header">
+                                        <span class="sim-batch-col-title">APPROACHES</span>
+                                        <div class="sim-batch-col-actions">
+                                            <button class="sim-batch-action-btn" id="simBatchApproachesAll">ALL</button>
+                                            <button class="sim-batch-action-btn" id="simBatchApproachesClear">NONE</button>
+                                        </div>
+                                    </div>
+                                    <div class="sim-batch-list" id="simBatchApproachList">
+                                        <div class="sim-batch-placeholder">LOADING...</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -189,6 +189,8 @@ function handleLogin() {
             document.querySelector('.container').classList.add('expanded');
             document.body.style.alignItems = 'stretch';
             document.body.style.justifyContent = 'stretch';
+            document.body.style.height = '100vh';
+            document.body.style.overflow = 'hidden';
 
             // Update status bar with username
             const statusMessage = document.getElementById('statusMessage');
@@ -578,6 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearStandings();
         hideRoundsTabBtn();
         currentSeasonId = null;
+        batchLastCountryId = null; // reset so batch reloads on next sim tab open
         await populateLeagueSelect(e.target.value);
         renderFootballContent();
     });
@@ -622,6 +625,28 @@ document.addEventListener('DOMContentLoaded', () => {
         switchFootballTab('matches');
     });
 
+    document.getElementById('tabBtnSimulation')?.addEventListener('click', () => {
+        switchFootballTab('simulation');
+        loadSimulationApproaches();
+        loadBatchData();
+    });
+
+    document.getElementById('simBatchLeaguesAll')?.addEventListener('click', () => setBatchCheckboxes('simBatchLeagueList', true));
+    document.getElementById('simBatchLeaguesClear')?.addEventListener('click', () => setBatchCheckboxes('simBatchLeagueList', false));
+    document.getElementById('simBatchSeasonsAll')?.addEventListener('click', () => setBatchCheckboxes('simBatchSeasonList', true));
+    document.getElementById('simBatchSeasonsClear')?.addEventListener('click', () => setBatchCheckboxes('simBatchSeasonList', false));
+    document.getElementById('simBatchApproachesAll')?.addEventListener('click', () => setBatchCheckboxes('simBatchApproachList', true));
+    document.getElementById('simBatchApproachesClear')?.addEventListener('click', () => setBatchCheckboxes('simBatchApproachList', false));
+    document.getElementById('tabBtnSimResults')?.addEventListener('click', () => {
+        switchFootballTab('simResults');
+        populateSimResultsApproachSelect();
+    });
+    document.getElementById('simRunBtn')?.addEventListener('click', runSimulation);
+    document.getElementById('simSaveBtn')?.addEventListener('click', saveSimulationResults);
+    document.getElementById('simRunAllBtn')?.addEventListener('click', runAllApproaches);
+    document.getElementById('simCancelBtn')?.addEventListener('click', () => { runAllCancelled = true; });
+    document.getElementById('simResultsLoadBtn')?.addEventListener('click', loadSavedSimulations);
+
     document.getElementById('predictGamesBtn')?.addEventListener('click', predictGames);
     document.getElementById('tabBtnPredict')?.addEventListener('click', e => {
         if (e.target.id === 'closePredictTabBtn' || e.target.closest('#closePredictTabBtn')) return;
@@ -630,6 +655,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('closePredictTabBtn')?.addEventListener('click', e => {
         e.stopPropagation();
         const tabBtn = document.getElementById('tabBtnPredict');
+        if (tabBtn) tabBtn.style.display = 'none';
+        switchFootballTab('matches');
+    });
+    document.getElementById('tabBtnPredictFull')?.addEventListener('click', e => {
+        if (e.target.id === 'closePredictFullTabBtn' || e.target.closest('#closePredictFullTabBtn')) return;
+        switchFootballTab('predictFull');
+    });
+    document.getElementById('closePredictFullTabBtn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        const tabBtn = document.getElementById('tabBtnPredictFull');
         if (tabBtn) tabBtn.style.display = 'none';
         switchFootballTab('matches');
     });
@@ -659,6 +694,40 @@ document.addEventListener('DOMContentLoaded', () => {
             const maxW = panelW * 0.7;
             const newW = Math.min(maxW, Math.max(160, startW + delta));
             sidebar.style.width = newW + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!resizer.classList.contains('is-dragging')) return;
+            resizer.classList.remove('is-dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        });
+    })();
+
+    // Simulation vertical resizer
+    (function() {
+        const resizer   = document.getElementById('simVResizer');
+        const statusPane = document.getElementById('simStatusPane');
+        if (!resizer || !statusPane) return;
+
+        let startY, startH;
+
+        resizer.addEventListener('mousedown', e => {
+            e.preventDefault();
+            startY = e.clientY;
+            startH = statusPane.getBoundingClientRect().height;
+            resizer.classList.add('is-dragging');
+            document.body.style.cursor = 'row-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', e => {
+            if (!resizer.classList.contains('is-dragging')) return;
+            const delta = e.clientY - startY;
+            const panel = statusPane.parentElement;
+            const panelH = panel.getBoundingClientRect().height;
+            const newH = Math.min(Math.max(startH + delta, 80), panelH - 120);
+            statusPane.style.height = newH + 'px';
         });
 
         document.addEventListener('mouseup', () => {
@@ -882,8 +951,11 @@ async function predictGames() {
         );
 
         renderPredictPanel(approaches, allPredictions);
+        renderPredictFullPanel(approaches, allPredictions);
         const tabBtn = document.getElementById('tabBtnPredict');
         if (tabBtn) tabBtn.style.display = '';
+        const tabBtnFull = document.getElementById('tabBtnPredictFull');
+        if (tabBtnFull) tabBtnFull.style.display = '';
         switchFootballTab('predict');
     } catch (err) {
         showError('PREDICTION FAILED');
@@ -1019,6 +1091,55 @@ function renderPredictPanel(approaches, allPredictions) {
 
         tbody.appendChild(mainTr);
         tbody.appendChild(detailTr);
+    });
+
+    table.appendChild(tbody);
+    container.innerHTML = '';
+    container.appendChild(table);
+}
+
+function renderPredictFullPanel(approaches, allPredictions) {
+    const container = document.getElementById('predictFullContainer');
+    if (!container) return;
+
+    if (!selectedGames.length) {
+        container.innerHTML = '<div class="football-placeholder">NO GAMES TO PREDICT</div>';
+        return;
+    }
+
+    const table = document.createElement('table');
+    table.className = 'predict-table predict-full-table';
+
+    const thead = document.createElement('thead');
+    const headerCells = approaches.map(a =>
+        `<th class="predict-approach-header" title="${a.description}">${a.name.toUpperCase()}</th>`
+    ).join('');
+    thead.innerHTML = `<tr><th class="predict-row-num-header">#</th>${headerCells}</tr>`;
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    selectedGames.forEach((_, idx) => {
+        const gamePreds = allPredictions[idx];
+        const tr = document.createElement('tr');
+        tr.className = 'predict-row';
+
+        let cells = `<td class="predict-row-num">${idx + 1}</td>`;
+        approaches.forEach((approach, ai) => {
+            const pred = gamePreds[ai];
+            if (!pred) {
+                cells += `<td class="predict-cell predict-cell--error"><span class="predict-outcome">?</span></td>`;
+                return;
+            }
+            const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
+            const outcome = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
+            let cls;
+            if (outcome === '1')      cls = 'predict-cell--home';
+            else if (outcome === 'X') cls = 'predict-cell--draw';
+            else                      cls = 'predict-cell--away';
+            cells += `<td class="predict-cell ${cls}"><span class="predict-outcome">${outcome}</span></td>`;
+        });
+        tr.innerHTML = cells;
+        tbody.appendChild(tr);
     });
 
     table.appendChild(tbody);
@@ -1250,16 +1371,22 @@ function hideRoundsTabBtn() {
 
 function switchFootballTab(tabName) {
     const panels = {
-        info:    document.getElementById('footballContent'),
-        rounds:  document.getElementById('footballRoundsPanel'),
-        matches: document.getElementById('footballMatchesPanel'),
-        predict: document.getElementById('footballPredictPanel'),
+        info:         document.getElementById('footballContent'),
+        rounds:       document.getElementById('footballRoundsPanel'),
+        matches:      document.getElementById('footballMatchesPanel'),
+        predict:      document.getElementById('footballPredictPanel'),
+        predictFull:  document.getElementById('footballPredictFullPanel'),
+        simulation:   document.getElementById('footballSimulationPanel'),
+        simResults:   document.getElementById('footballSimResultsPanel'),
     };
     const tabs = {
-        info:    document.getElementById('tabBtnInfo'),
-        rounds:  document.getElementById('tabBtnRounds'),
-        matches: document.getElementById('tabBtnMatches'),
-        predict: document.getElementById('tabBtnPredict'),
+        info:         document.getElementById('tabBtnInfo'),
+        rounds:       document.getElementById('tabBtnRounds'),
+        matches:      document.getElementById('tabBtnMatches'),
+        predict:      document.getElementById('tabBtnPredict'),
+        predictFull:  document.getElementById('tabBtnPredictFull'),
+        simulation:   document.getElementById('tabBtnSimulation'),
+        simResults:   document.getElementById('tabBtnSimResults'),
     };
 
     Object.values(panels).forEach(p => { if (p) p.style.display = 'none'; });
@@ -1513,6 +1640,774 @@ async function loadStandings(seasonId) {
         console.error('Failed to load standings:', err);
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;letter-spacing:2px;color:var(--color-secondary)">ERROR</td></tr>';
         showError('Failed to load standings');
+    }
+}
+
+// ── Simulation ────────────────────────────────────────────────────────────────
+let simApproachesLoaded = false;
+let lastSimulationResults = null; // { season, approachIndex, approachName, results[] }
+let runAllCancelled = false;
+
+// Batch selection state: array of { id, name, seasons: null | [{id, year}] }
+let batchLeaguesData = [];
+let batchLastCountryId = null;
+
+function setBatchCheckboxes(listId, checked) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    list.querySelectorAll('.sim-batch-check').forEach(cb => { cb.checked = checked; });
+    if (listId === 'simBatchLeagueList') refreshBatchSeasons();
+}
+
+async function loadBatchData() {
+    const countryId = document.getElementById('countrySelect')?.value;
+    if (!countryId) return;
+
+    // Load approaches into batch list (reuse cached data)
+    try {
+        const approaches = await loadPredictionApproaches();
+        renderBatchApproachList(approaches);
+    } catch (e) { /* silently ignore — approach list shows placeholder */ }
+
+    // Only reload leagues if country changed
+    if (countryId !== batchLastCountryId) {
+        batchLastCountryId = countryId;
+        batchLeaguesData = [];
+        await loadBatchLeagues(countryId);
+    }
+}
+
+async function loadBatchLeagues(countryId) {
+    const list = document.getElementById('simBatchLeagueList');
+    if (!list) return;
+    list.innerHTML = '<div class="sim-batch-placeholder">LOADING...</div>';
+
+    try {
+        const res = await fetch(`${FOOTBALL_API_BASE}/api/Football/countries/${countryId}/leagues`, { headers: { 'accept': '*/*' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const leagues = await res.json();
+        batchLeaguesData = leagues.map(l => ({ id: l.id, name: l.name, seasons: null }));
+        renderBatchLeagueList();
+    } catch (e) {
+        list.innerHTML = '<div class="sim-batch-placeholder">ERROR LOADING LEAGUES</div>';
+    }
+}
+
+function renderBatchLeagueList() {
+    const list = document.getElementById('simBatchLeagueList');
+    if (!list) return;
+    if (!batchLeaguesData.length) {
+        list.innerHTML = '<div class="sim-batch-placeholder">NO LEAGUES FOUND</div>';
+        return;
+    }
+    list.innerHTML = '';
+    batchLeaguesData.forEach((league, idx) => {
+        const label = document.createElement('label');
+        label.className = 'sim-batch-item';
+        label.innerHTML = `<input type="checkbox" class="sim-batch-check" data-idx="${idx}" checked> <span>${league.name.toUpperCase()}</span>`;
+        label.querySelector('input').addEventListener('change', refreshBatchSeasons);
+        list.appendChild(label);
+    });
+    refreshBatchSeasons();
+}
+
+async function refreshBatchSeasons() {
+    const seasonList = document.getElementById('simBatchSeasonList');
+    if (!seasonList) return;
+
+    const selectedIndices = [...document.querySelectorAll('#simBatchLeagueList .sim-batch-check:checked')]
+        .map(cb => parseInt(cb.dataset.idx))
+        .filter(i => !isNaN(i));
+
+    if (!selectedIndices.length) {
+        seasonList.innerHTML = '<div class="sim-batch-placeholder">SELECT LEAGUES FIRST</div>';
+        return;
+    }
+
+    seasonList.innerHTML = '<div class="sim-batch-placeholder">LOADING...</div>';
+
+    const yearSet = new Set();
+    for (const idx of selectedIndices) {
+        const league = batchLeaguesData[idx];
+        if (!league) continue;
+        if (!league.seasons) {
+            try {
+                const res = await fetch(`${FOOTBALL_API_BASE}/api/Football/leagues/${league.id}/seasons`, { headers: { 'accept': '*/*' } });
+                league.seasons = res.ok ? (await res.json()).filter(s => !s.isActive) : [];
+            } catch { league.seasons = []; }
+        }
+        league.seasons.forEach(s => yearSet.add(s.year));
+    }
+
+    const years = [...yearSet].sort((a, b) => b - a);
+    if (!years.length) {
+        seasonList.innerHTML = '<div class="sim-batch-placeholder">NO FINISHED SEASONS</div>';
+        return;
+    }
+    seasonList.innerHTML = '';
+    years.forEach(year => {
+        const label = document.createElement('label');
+        label.className = 'sim-batch-item';
+        label.innerHTML = `<input type="checkbox" class="sim-batch-check sim-batch-season-check" data-year="${year}" checked> <span>${year}</span>`;
+        seasonList.appendChild(label);
+    });
+}
+
+function renderBatchApproachList(approaches) {
+    const list = document.getElementById('simBatchApproachList');
+    if (!list) return;
+    if (!approaches.length) {
+        list.innerHTML = '<div class="sim-batch-placeholder">NO APPROACHES</div>';
+        return;
+    }
+    // Don't re-render if already populated with same count
+    if (list.querySelectorAll('.sim-batch-check').length === approaches.length) return;
+    list.innerHTML = '';
+    approaches.forEach(a => {
+        const label = document.createElement('label');
+        label.className = 'sim-batch-item';
+        label.title = a.description || '';
+        label.innerHTML = `<input type="checkbox" class="sim-batch-check" data-index="${a.index}" checked> <span>${a.name.toUpperCase()}</span>`;
+        list.appendChild(label);
+    });
+}
+
+async function loadSimulationApproaches() {
+    if (simApproachesLoaded) return;
+    const select = document.getElementById('simApproachSelect');
+    if (!select) return;
+
+    select.disabled = true;
+    select.innerHTML = '<option value="">-- Loading... --</option>';
+
+    try {
+        const approaches = await loadPredictionApproaches();
+        select.innerHTML = '<option value="">-- Select Approach --</option>';
+        approaches.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a.index;
+            opt.textContent = a.name.toUpperCase();
+            if (a.description) opt.title = a.description;
+            select.appendChild(opt);
+        });
+        simApproachesLoaded = true;
+    } catch (err) {
+        select.innerHTML = '<option value="">-- ERROR LOADING --</option>';
+        showError('FAILED TO LOAD APPROACHES');
+        console.error(err);
+    } finally {
+        select.disabled = false;
+    }
+}
+
+async function runSimulation() {
+    const seasonId = currentSeasonId;
+    const approachIndex = document.getElementById('simApproachSelect')?.value;
+
+    if (!seasonId) {
+        showError('NO SEASON SELECTED — USE THE SIDEBAR');
+        return;
+    }
+    if (approachIndex === '' || approachIndex == null) {
+        showError('SELECT AN APPROACH FIRST');
+        return;
+    }
+
+    const season = footballSeasons.find(s => s.id === seasonId);
+    if (season?.isActive) {
+        showError('SEASON IS STILL ACTIVE — SIMULATE ONLY ENDED SEASONS');
+        return;
+    }
+
+    const btn = document.getElementById('simRunBtn');
+    const container = document.getElementById('simulationContainer');
+    const progress  = document.getElementById('simProgress');
+    const progLabel = document.getElementById('simProgressLabel');
+    const progStats = document.getElementById('simProgressStats');
+    const progFill  = document.getElementById('simProgressFill');
+
+    const saveBtn = document.getElementById('simSaveBtn');
+    if (btn)     { btn.textContent = '[ RUNNING... ]'; btn.disabled = true; }
+    if (saveBtn) saveBtn.disabled = true;
+    container.innerHTML = '';
+    if (progress) progress.style.display = '';
+    if (progLabel) progLabel.textContent = 'INITIALIZING...';
+    if (progStats) progStats.textContent = '';
+    if (progFill)  progFill.style.width  = '0%';
+
+    const ASSUMED_MAX_ROUNDS = 38;
+
+    function updateProgress(round, correct, successful, failed) {
+        const pct = Math.min((round / ASSUMED_MAX_ROUNDS) * 100, 95);
+        if (progFill)  progFill.style.width = `${pct.toFixed(1)}%`;
+        if (progLabel) progLabel.textContent = `SIMULATING ROUND ${round}...`;
+        if (progStats && successful > 0) {
+            const acc = ((correct / successful) * 100).toFixed(1);
+            progStats.textContent = `${correct} / ${successful} CORRECT (${acc}%)${failed ? `  ·  ${failed} FAILED` : ''}`;
+        }
+    }
+
+    const results = [];
+
+    try {
+        let round          = 1;
+        let runningCorrect = 0;
+        let runningTotal   = 0;
+        let runningFailed  = 0;
+
+        while (true) {
+            updateProgress(round, runningCorrect, runningTotal - runningFailed, runningFailed);
+
+            const res = await fetch(`${FOOTBALL_API_BASE}/api/Football/seasons/${seasonId}/rounds/${round}/games`, {
+                headers: { 'accept': '*/*' }
+            });
+            if (!res.ok) break;
+            const games = await res.json();
+            if (!games.length) break;
+
+            const gameResults = await Promise.all(games.map(async game => {
+                const hs  = game.homeFullTimeScore;
+                const as_ = game.outFullTimeScore;
+                if (hs == null || as_ == null) return null; // unfinished — skip entirely
+
+                const actual = hs > as_ ? '1' : hs < as_ ? '2' : 'X';
+
+                try {
+                    const predRes = await fetch(
+                        `${PREDICTION_API_BASE}/api/Prediction/predict?homeTeamId=${game.teamIdHome}&awayTeamId=${game.teamIdOut}&seasonId=${seasonId}&approach=${approachIndex}`,
+                        { headers: { 'accept': '*/*' } }
+                    );
+                    if (!predRes.ok) return { apiError: true }; // finished but prediction failed
+                    const pred = await predRes.json();
+                    const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
+                    const predicted = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
+                    return { apiError: false, isCorrect: predicted === actual };
+                } catch {
+                    return { apiError: true }; // finished but prediction failed
+                }
+            }));
+
+            // null = unfinished game (not counted); { apiError } = finished game
+            const finished = gameResults.filter(g => g !== null);
+            const failed   = finished.filter(g => g.apiError).length;
+            const correct  = finished.filter(g => !g.apiError && g.isCorrect).length;
+
+            results.push({ round, total: finished.length, correct, failed });
+            runningCorrect += correct;
+            runningTotal   += finished.length;
+            runningFailed  += failed;
+            round++;
+        }
+
+        if (progFill)  progFill.style.width = '100%';
+        if (progLabel) progLabel.textContent = 'COMPLETE';
+        const finalSuccessful = runningTotal - runningFailed;
+        if (progStats && finalSuccessful > 0) {
+            const acc = ((runningCorrect / finalSuccessful) * 100).toFixed(1);
+            progStats.textContent = `${runningCorrect} / ${finalSuccessful} CORRECT (${acc}%)${runningFailed ? `  ·  ${runningFailed} FAILED` : ''}`;
+        }
+
+        const approachName = document.getElementById('simApproachSelect')?.selectedOptions[0]?.textContent ?? '';
+        lastSimulationResults = { season, approachIndex, approachName, results };
+
+        setTimeout(() => {
+            if (progress) progress.style.display = 'none';
+            renderSimulationTable(season, results);
+            if (saveBtn) saveBtn.disabled = false;
+        }, 600);
+    } catch (err) {
+        if (progress) progress.style.display = 'none';
+        container.innerHTML = '<div class="football-placeholder">SIMULATION ERROR</div>';
+        showError('SIMULATION FAILED');
+        console.error(err);
+    } finally {
+        if (btn) { btn.textContent = '[ RUN SIMULATION ]'; btn.disabled = false; }
+    }
+}
+
+function buildSimulationChart(results) {
+    const W = 560, H = 180;
+    const pad = { top: 20, right: 20, bottom: 36, left: 46 };
+    const plotW = W - pad.left - pad.right;
+    const plotH = H - pad.top - pad.bottom;
+    const n = results.length;
+
+    const pcts = results.map(r => {
+        const successful = r.total - r.failed;
+        return successful > 0 ? (r.correct / successful) * 100 : 0;
+    });
+    const xOf  = i => n > 1 ? (i / (n - 1)) * plotW : plotW / 2;
+    const yOf  = v => plotH - (v / 100) * plotH;
+
+    // Grid lines
+    let grid = '';
+    [0, 20, 40, 60, 71, 80, 85, 100].forEach(v => {
+        const y = yOf(v);
+        const isGood = v === 85, isMid = v === 71;
+        const stroke = isGood ? 'rgba(0,255,0,0.35)' : isMid ? 'rgba(255,170,0,0.35)' : 'rgba(30,42,94,0.8)';
+        const dash   = (isGood || isMid) ? '5,3' : '2,5';
+        grid += `<line x1="0" y1="${y.toFixed(1)}" x2="${plotW}" y2="${y.toFixed(1)}"
+                       stroke="${stroke}" stroke-width="0.8" stroke-dasharray="${dash}"/>`;
+        grid += `<text x="-6" y="${(y + 4).toFixed(1)}" text-anchor="end"
+                       font-family="IBM Plex Mono,monospace" font-size="8" fill="#606880">${v}%</text>`;
+    });
+
+    // X axis labels — skip labels if too crowded (show every nth)
+    const labelStep = n > 30 ? 5 : n > 15 ? 2 : 1;
+    let xLabels = '';
+    results.forEach((r, i) => {
+        if (i === 0 || i === n - 1 || (r.round % labelStep === 0)) {
+            xLabels += `<text x="${xOf(i).toFixed(1)}" y="${(plotH + 16).toFixed(1)}"
+                              text-anchor="middle" font-family="IBM Plex Mono,monospace"
+                              font-size="8" fill="#606880">${r.round}</text>`;
+        }
+    });
+
+    // Area path
+    const ptStr = pcts.map((p, i) => `${xOf(i).toFixed(1)},${yOf(p).toFixed(1)}`).join(' L ');
+    const areaD = `M ${xOf(0).toFixed(1)},${yOf(pcts[0]).toFixed(1)} L ${ptStr} `
+                + `L ${xOf(n - 1).toFixed(1)},${plotH} L ${xOf(0).toFixed(1)},${plotH} Z`;
+    const lineD = `M ${ptStr}`;
+
+    // Dots with per-point colours
+    let dots = '';
+    pcts.forEach((p, i) => {
+        const cx = xOf(i).toFixed(1);
+        const cy = yOf(p).toFixed(1);
+        const col = p > 85 ? '#00ff00' : p >= 71 ? '#ffaa00' : '#ff3366';
+        dots += `<circle cx="${cx}" cy="${cy}" r="3.5" fill="${col}" filter="url(#scGlow)">
+                     <title>RND ${results[i].round}: ${p.toFixed(1)}%</title>
+                 </circle>`;
+    });
+
+    return `<svg class="sim-chart" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+        <defs>
+            <filter id="scGlow" x="-60%" y="-60%" width="220%" height="220%">
+                <feGaussianBlur stdDeviation="2.5" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <linearGradient id="scArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stop-color="#00fff9" stop-opacity="0.18"/>
+                <stop offset="100%" stop-color="#00fff9" stop-opacity="0"/>
+            </linearGradient>
+        </defs>
+        <g transform="translate(${pad.left},${pad.top})">
+            ${grid}
+            <line x1="0" y1="${plotH}" x2="${plotW}" y2="${plotH}" stroke="#1e2a5e" stroke-width="1"/>
+            <line x1="0" y1="0"       x2="0"       y2="${plotH}" stroke="#1e2a5e" stroke-width="1"/>
+            <path d="${areaD}" fill="url(#scArea)"/>
+            <path d="${lineD}" fill="none" stroke="#00fff9" stroke-width="1.5" filter="url(#scGlow)" stroke-linejoin="round"/>
+            ${dots}
+            ${xLabels}
+            <text x="${(plotW / 2).toFixed(1)}" y="${(plotH + 30).toFixed(1)}"
+                  text-anchor="middle" font-family="IBM Plex Mono,monospace"
+                  font-size="8" fill="#404860" letter-spacing="2">ROUND</text>
+        </g>
+    </svg>`;
+}
+
+function renderSimulationTable(season, results) {
+    const container = document.getElementById('simulationContainer');
+    if (!results.length) {
+        container.innerHTML = '<div class="football-placeholder">NO FINISHED GAMES FOUND</div>';
+        return;
+    }
+
+    const totalCorrect    = results.reduce((s, r) => s + r.correct, 0);
+    const totalGames      = results.reduce((s, r) => s + r.total, 0);
+    const totalFailed     = results.reduce((s, r) => s + r.failed, 0);
+    const totalSuccessful = totalGames - totalFailed;
+    const overallPct      = totalSuccessful > 0 ? ((totalCorrect / totalSuccessful) * 100).toFixed(1) : '0.0';
+
+    function scoreCls(pct) {
+        return parseFloat(pct) >  85 ? 'sim-score--good'
+             : parseFloat(pct) >= 71 ? 'sim-score--mid'
+             : 'sim-score--bad';
+    }
+
+    let tableHtml = `<table class="simulation-table">
+        <thead>
+            <tr>
+                <th>SEASON</th>
+                <th>ROUND</th>
+                <th>TOTAL</th>
+                <th>CORRECT</th>
+                <th>FAILED</th>
+                <th>SCORE</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    results.forEach(r => {
+        const successful = r.total - r.failed;
+        const pct = successful > 0 ? ((r.correct / successful) * 100).toFixed(1) : '0.0';
+        tableHtml += `<tr>
+            <td>${season?.year ?? '—'}</td>
+            <td>${r.round}</td>
+            <td>${r.total}</td>
+            <td>${r.correct}</td>
+            <td class="${r.failed > 0 ? 'sim-score--bad' : ''}">${r.failed > 0 ? r.failed : '—'}</td>
+            <td class="${scoreCls(pct)}">${pct}%</td>
+        </tr>`;
+    });
+
+    tableHtml += `</tbody>
+        <tfoot>
+            <tr class="sim-total-row">
+                <td colspan="2">TOTAL</td>
+                <td>${totalGames}</td>
+                <td>${totalCorrect}</td>
+                <td class="${totalFailed > 0 ? 'sim-score--bad' : ''}">${totalFailed > 0 ? totalFailed : '—'}</td>
+                <td class="${scoreCls(overallPct)}">${overallPct}%</td>
+            </tr>
+        </tfoot>
+    </table>`;
+
+    container.innerHTML =
+        `<div class="sim-chart-wrap">${buildSimulationChart(results)}</div>` +
+        `<div class="sim-table-wrap">${tableHtml}</div>`;
+}
+
+let simResultsApproachesLoaded = false;
+
+async function populateSimResultsApproachSelect() {
+    if (simResultsApproachesLoaded) return;
+    const select = document.getElementById('simResultsApproachSelect');
+    if (!select) return;
+    try {
+        const approaches = await loadPredictionApproaches();
+        approaches.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a.index;
+            opt.textContent = a.name.toUpperCase();
+            if (a.description) opt.title = a.description;
+            select.appendChild(opt);
+        });
+        simResultsApproachesLoaded = true;
+    } catch (err) {
+        console.error('Failed to populate sim results approach select:', err);
+    }
+}
+
+async function loadSavedSimulations() {
+    const container = document.getElementById('simResultsContainer');
+    const approachVal = document.getElementById('simResultsApproachSelect')?.value;
+    const btn = document.getElementById('simResultsLoadBtn');
+
+    if (btn) { btn.textContent = '[ LOADING... ]'; btn.disabled = true; }
+    container.innerHTML = '<div class="football-placeholder">LOADING...</div>';
+
+    try {
+        const params = new URLSearchParams();
+        if (approachVal !== '') params.set('approach', approachVal);
+        if (currentSeasonId)   params.set('seasonId', currentSeasonId);
+
+        const qs  = params.toString();
+        const url = `${PREDICTION_API_BASE}/api/Prediction/simulation${qs ? '?' + qs : ''}`;
+        const res = await fetch(url, { headers: { 'accept': '*/*' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+
+        renderSavedSimulationsTable(data);
+    } catch (err) {
+        container.innerHTML = '<div class="football-placeholder">ERROR LOADING RESULTS</div>';
+        showError('FAILED TO LOAD SIMULATION RESULTS');
+        console.error(err);
+    } finally {
+        if (btn) { btn.textContent = '[ LOAD RESULTS ]'; btn.disabled = false; }
+    }
+}
+
+function renderSavedSimulationsTable(data) {
+    const container = document.getElementById('simResultsContainer');
+    if (!data?.length) {
+        container.innerHTML = '<div class="football-placeholder">NO SAVED RESULTS FOUND</div>';
+        return;
+    }
+
+    const approaches = cachedApproaches || [];
+
+    // Group by seasonId then approach for organised display
+    const rows = data.map(r => {
+        const season   = footballSeasons.find(s => s.id === r.seasonId);
+        const approach = approaches.find(a => a.index === r.approach);
+        const scorePct = (r.score * 100).toFixed(1);
+        const cls      = parseFloat(scorePct) >  85 ? 'sim-score--good'
+                       : parseFloat(scorePct) >= 71 ? 'sim-score--mid'
+                       : 'sim-score--bad';
+        return { seasonYear: season?.year ?? r.seasonId, approachName: approach?.name?.toUpperCase() ?? `#${r.approach}`, round: r.round, scorePct, cls };
+    });
+
+    // Sort by season → approach → round
+    rows.sort((a, b) =>
+        String(a.seasonYear).localeCompare(String(b.seasonYear)) ||
+        a.approachName.localeCompare(b.approachName) ||
+        a.round - b.round
+    );
+
+    let html = `<table class="simulation-table">
+        <thead>
+            <tr>
+                <th>SEASON</th>
+                <th>APPROACH</th>
+                <th>ROUND</th>
+                <th>SCORE</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    rows.forEach(r => {
+        html += `<tr>
+            <td>${r.seasonYear}</td>
+            <td>${r.approachName}</td>
+            <td>${r.round}</td>
+            <td class="${r.cls}">${r.scorePct}%</td>
+        </tr>`;
+    });
+
+    html += `</tbody></table>`;
+    container.innerHTML = `<div class="sim-table-wrap">${html}</div>`;
+}
+
+async function runAllApproaches() {
+    runAllCancelled = false;
+
+    const countryId = document.getElementById('countrySelect')?.value;
+    if (!countryId) { showError('NO COUNTRY SELECTED — USE THE SIDEBAR'); return; }
+
+    const allBtn    = document.getElementById('simRunAllBtn');
+    const runBtn    = document.getElementById('simRunBtn');
+    const saveBtn   = document.getElementById('simSaveBtn');
+    const container = document.getElementById('simulationContainer');
+    const titleEl   = document.getElementById('simAllTitle');
+
+    const fillLeague   = document.getElementById('simAllFillLeague');
+    const fillSeason   = document.getElementById('simAllFillSeason');
+    const fillApproach = document.getElementById('simAllFillApproach');
+    const fillTotal    = document.getElementById('simAllFillTotal');
+    const infoLeague   = document.getElementById('simAllInfoLeague');
+    const infoSeason   = document.getElementById('simAllInfoSeason');
+    const infoApproach = document.getElementById('simAllInfoApproach');
+    const infoTotal    = document.getElementById('simAllInfoTotal');
+
+    const setFill = (el, pct) => { if (el) el.style.width = `${Math.min(pct, 100).toFixed(1)}%`; };
+    const setInfo = (el, txt)  => { if (el) el.textContent = txt; };
+
+    if (allBtn)  { allBtn.textContent = '[ RUNNING... ]'; allBtn.disabled = true; }
+    if (runBtn)  runBtn.disabled  = true;
+    if (saveBtn) saveBtn.disabled = true;
+
+    container.innerHTML = '';
+    // ── Resolve batch selections ──────────────────────────────────────────────
+    const selectedLeagueIndices = [...document.querySelectorAll('#simBatchLeagueList .sim-batch-check:checked')]
+        .map(cb => parseInt(cb.dataset.idx)).filter(i => !isNaN(i));
+    const selectedSeasonYears = new Set(
+        [...document.querySelectorAll('#simBatchSeasonList .sim-batch-check:checked')].map(cb => String(cb.dataset.year))
+    );
+    const selectedApproachIndices = new Set(
+        [...document.querySelectorAll('#simBatchApproachList .sim-batch-check:checked')].map(cb => parseInt(cb.dataset.index))
+    );
+
+    if (!selectedLeagueIndices.length)   { showError('NO LEAGUES SELECTED — USE BATCH CONFIGURATION'); return; }
+    if (!selectedSeasonYears.size)        { showError('NO SEASONS SELECTED — USE BATCH CONFIGURATION'); return; }
+    if (!selectedApproachIndices.size)    { showError('NO APPROACHES SELECTED — USE BATCH CONFIGURATION'); return; }
+
+    const cancelBtn = document.getElementById('simCancelBtn');
+    if (cancelBtn) cancelBtn.style.display = '';
+    [fillLeague, fillSeason, fillApproach, fillTotal].forEach(f => setFill(f, 0));
+    [infoLeague, infoSeason, infoApproach, infoTotal].forEach(i => setInfo(i, '—'));
+    if (titleEl) titleEl.textContent = 'BUILDING WORK LIST...';
+
+    const ASSUMED_MAX_ROUNDS = 38;
+    let roundsSaved = 0;
+    let saveErrors  = 0;
+    let seasonsDone = 0;
+
+    try {
+        const allApproaches = await loadPredictionApproaches();
+        const approaches    = allApproaches.filter(a => selectedApproachIndices.has(a.index));
+        const totalApproach = approaches.length;
+
+        // ── Phase 1: build work list from batch-selected leagues & season years ─
+        // { leagueId, leagueName, seasonId, seasonYear }
+        const work = [];
+
+        for (const idx of selectedLeagueIndices) {
+            if (runAllCancelled) break;
+            const league = batchLeaguesData[idx];
+            if (!league) continue;
+            if (titleEl) titleEl.textContent = `SCANNING: ${league.name.toUpperCase()}`;
+
+            // Use cached seasons from batch UI if available, else fetch
+            if (!league.seasons) {
+                const res = await fetch(`${FOOTBALL_API_BASE}/api/Football/leagues/${league.id}/seasons`, { headers: { 'accept': '*/*' } });
+                league.seasons = res.ok ? (await res.json()).filter(s => !s.isActive) : [];
+            }
+
+            league.seasons
+                .filter(s => selectedSeasonYears.has(String(s.year)))
+                .forEach(s => work.push({ leagueId: league.id, leagueName: league.name, seasonId: s.id, seasonYear: s.year }));
+        }
+
+        if (runAllCancelled) { showCancelState(); return; }
+
+        // ── Phase 2: group by league and run ─────────────────────────────────
+        const byLeague = new Map();
+        for (const w of work) {
+            if (!byLeague.has(w.leagueId))
+                byLeague.set(w.leagueId, { leagueName: w.leagueName, seasons: [] });
+            byLeague.get(w.leagueId).seasons.push(w);
+        }
+
+        const totalLeagues  = byLeague.size;
+        const totalSeasons  = work.length;
+        const estimatedTotal = totalSeasons * totalApproach * ASSUMED_MAX_ROUNDS;
+
+        if (titleEl) titleEl.textContent = 'RUNNING BATCH';
+
+        let leaguesDone = 0;
+
+        for (const [, { leagueName, seasons }] of byLeague) {
+            if (runAllCancelled) break;
+            leaguesDone++;
+            setFill(fillLeague, (leaguesDone / totalLeagues) * 100);
+            setInfo(infoLeague, `${leaguesDone}/${totalLeagues} — ${leagueName.toUpperCase()}`);
+
+            setFill(fillSeason, 0);
+            let seasonsInLeague = 0;
+
+            for (const { seasonId, seasonYear } of seasons) {
+                if (runAllCancelled) break;
+                seasonsInLeague++;
+                seasonsDone++;
+                setFill(fillSeason, (seasonsInLeague / seasons.length) * 100);
+                setInfo(infoSeason, `${seasonsInLeague}/${seasons.length} — ${seasonYear}`);
+
+                setFill(fillApproach, 0);
+
+                for (let ai = 0; ai < approaches.length; ai++) {
+                    if (runAllCancelled) break;
+                    const approach = approaches[ai];
+                    setFill(fillApproach, (ai / totalApproach) * 100);
+                    setInfo(infoApproach, `${ai + 1}/${totalApproach} — ${approach.name.toUpperCase()}`);
+
+                    let round = 1;
+                    while (!runAllCancelled) {
+                        setFill(fillTotal, (roundsSaved / estimatedTotal) * 100);
+                        setInfo(infoTotal,
+                            `${roundsSaved} ROUNDS SAVED` +
+                            (saveErrors ? ` · ${saveErrors} ERRORS` : ''));
+
+                        const res = await fetch(
+                            `${FOOTBALL_API_BASE}/api/Football/seasons/${seasonId}/rounds/${round}/games`,
+                            { headers: { 'accept': '*/*' } }
+                        );
+                        if (!res.ok) break;
+                        const games = await res.json();
+                        if (!games.length) break;
+
+                        const gameResults = await Promise.all(games.map(async game => {
+                            const hs  = game.homeFullTimeScore;
+                            const as_ = game.outFullTimeScore;
+                            if (hs == null || as_ == null) return null;
+                            const actual = hs > as_ ? '1' : hs < as_ ? '2' : 'X';
+                            try {
+                                const predRes = await fetch(
+                                    `${PREDICTION_API_BASE}/api/Prediction/predict?homeTeamId=${game.teamIdHome}&awayTeamId=${game.teamIdOut}&seasonId=${seasonId}&approach=${approach.index}`,
+                                    { headers: { 'accept': '*/*' } }
+                                );
+                                if (!predRes.ok) return { apiError: true };
+                                const pred = await predRes.json();
+                                const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
+                                const predicted = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
+                                return { apiError: false, isCorrect: predicted === actual };
+                            } catch { return { apiError: true }; }
+                        }));
+
+                        const finished   = gameResults.filter(g => g !== null);
+                        const failed     = finished.filter(g => g.apiError).length;
+                        const correct    = finished.filter(g => !g.apiError && g.isCorrect).length;
+                        const successful = finished.length - failed;
+                        const score      = successful > 0 ? correct / successful : 0;
+
+                        try {
+                            const saveRes = await fetch(
+                                `${PREDICTION_API_BASE}/api/Prediction/simulation?seasonId=${seasonId}&round=${round}&approach=${approach.index}&score=${score}`,
+                                { method: 'POST', headers: { 'accept': '*/*' } }
+                            );
+                            if (!saveRes.ok) throw new Error();
+                            roundsSaved++;
+                        } catch { saveErrors++; }
+
+                        round++;
+                    }
+
+                    setFill(fillApproach, ((ai + 1) / totalApproach) * 100);
+                }
+            }
+        }
+
+        if (runAllCancelled) {
+            showCancelState();
+            return;
+        }
+
+        // ── Complete ──────────────────────────────────────────────────────────
+        [fillLeague, fillSeason, fillApproach, fillTotal].forEach(f => setFill(f, 100));
+        setInfo(infoTotal, `${roundsSaved} ROUNDS SAVED${saveErrors ? ` · ${saveErrors} ERRORS` : ''}`);
+        if (titleEl) titleEl.textContent = `COMPLETE — ${leaguesDone} LEAGUES · ${seasonsDone} SEASONS · ${totalApproach} APPROACHES`;
+        showSuccess('BATCH COMPLETE');
+
+        setTimeout(() => {
+            if (cancelBtn) cancelBtn.style.display = 'none';
+            container.innerHTML = `<div class="football-placeholder">COMPLETE — ${roundsSaved} ROUNDS SAVED ACROSS ${seasonsDone} SEASONS</div>`;
+        }, 2000);
+
+    } catch (err) {
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (titleEl) titleEl.textContent = 'BATCH STATUS';
+        container.innerHTML = '<div class="football-placeholder">ERROR</div>';
+        showError('BATCH RUN FAILED');
+        console.error(err);
+    } finally {
+        if (allBtn) { allBtn.textContent = '[ RUN BATCH ]'; allBtn.disabled = false; }
+        if (runBtn) runBtn.disabled = false;
+    }
+
+    function showCancelState() {
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (titleEl) titleEl.textContent = 'CANCELLED';
+        setInfo(infoTotal, `${roundsSaved} ROUNDS SAVED${saveErrors ? ` · ${saveErrors} ERRORS` : ''}`);
+        container.innerHTML = `<div class="football-placeholder">CANCELLED — ${roundsSaved} ROUNDS SAVED BEFORE STOP</div>`;
+    }
+}
+
+async function saveSimulationResults() {
+    if (!lastSimulationResults) return;
+
+    const { season, approachIndex, results } = lastSimulationResults;
+    const seasonId = season?.id;
+    if (!seasonId) { showError('NO SEASON DATA TO SAVE'); return; }
+
+    const btn = document.getElementById('simSaveBtn');
+    if (btn) { btn.textContent = '[ SAVING... ]'; btn.disabled = true; }
+
+    try {
+        await Promise.all(results.map(r => {
+            const successful = r.total - r.failed;
+            const score = successful > 0 ? r.correct / successful : 0;
+            return fetch(
+                `${PREDICTION_API_BASE}/api/Prediction/simulation?seasonId=${seasonId}&round=${r.round}&approach=${approachIndex}&score=${score}`,
+                { method: 'POST', headers: { 'accept': '*/*' } }
+            ).then(res => { if (!res.ok) throw new Error(`Round ${r.round}: HTTP ${res.status}`); });
+        }));
+
+        showSuccess('SIMULATION RESULTS SAVED');
+    } catch (err) {
+        showError('SAVE FAILED');
+        console.error(err);
+    } finally {
+        if (btn) { btn.textContent = '[ SAVE RESULTS ]'; btn.disabled = false; }
     }
 }
 // ─────────────────────────────────────────────────────────────────────────────

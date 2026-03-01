@@ -82,7 +82,7 @@ body {
 
 .container.expanded {
     max-width: 100%;
-    min-height: 100vh;
+    height: 100%;
     display: flex;
     flex-direction: column;
 }
@@ -527,9 +527,9 @@ body {
     background: rgba(0, 0, 0, 0.4);
     border: 1px solid var(--color-border);
     color: var(--color-primary);
-    padding: 6px 14px;
+    padding: 8px 18px;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 1.5px;
     cursor: pointer;
@@ -538,6 +538,16 @@ body {
     position: relative;
     overflow: hidden;
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.toolbar-btn svg {
+    flex-shrink: 0;
+    transition: color 0.3s ease;
+    width: 17px;
+    height: 17px;
 }
 
 .toolbar-btn::before {
@@ -873,7 +883,7 @@ body {
 
     .toolbar-btn {
         flex: 1;
-        text-align: center;
+        justify-content: center;
     }
 
 }
@@ -1488,6 +1498,447 @@ body {
     box-shadow: 0 0 10px rgba(255, 0, 255, 0.3);
 }
 
+/* ── Simulation toolbar ───────────────────────────────────────────────────── */
+.simulation-toolbar {
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--color-border);
+    background: rgba(0, 0, 0, 0.2);
+    flex-shrink: 0;
+}
+
+.simulation-control {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 220px;
+}
+
+.sim-run-btn {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    align-self: flex-end;
+}
+
+.sim-run-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+.sim-run-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.sim-save-btn {
+    border-color: var(--color-secondary);
+    color: var(--color-secondary);
+}
+
+.sim-save-btn:hover:not(:disabled) {
+    box-shadow: 0 0 10px rgba(255, 0, 255, 0.3);
+}
+
+.sim-save-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.sim-run-all-btn {
+    border-color: var(--color-warning);
+    color: var(--color-warning);
+    margin-left: auto;
+}
+
+.sim-run-all-btn:hover:not(:disabled) {
+    box-shadow: 0 0 10px rgba(255, 170, 0, 0.35);
+}
+
+.sim-run-all-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── Simulation panel layout overrides ───────────────────────────────────── */
+#footballSimulationPanel {
+    padding: 0;
+    overflow: hidden;
+}
+
+/* ── Running batch status pane (top) ─────────────────────────────────────── */
+.sim-status-pane {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    height: 230px;
+    min-height: 100px;
+    overflow: hidden;
+    margin: 10px 10px 0;
+    border: 1px solid var(--color-border);
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.sim-status-pane #simulationContainer {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+/* ── Vertical resizer ─────────────────────────────────────────────────────── */
+.sim-v-resizer {
+    height: 6px;
+    flex-shrink: 0;
+    margin: 0 10px;
+    background: var(--color-border);
+    cursor: row-resize;
+    position: relative;
+    transition: background 0.15s;
+}
+
+.sim-v-resizer::after {
+    content: '';
+    position: absolute;
+    inset: -5px 0;
+}
+
+.sim-v-resizer:hover,
+.sim-v-resizer.is-dragging {
+    background: var(--color-primary);
+    box-shadow: 0 0 6px var(--color-primary);
+}
+
+/* ── Batch selection pane (bottom, fills remaining) ──────────────────────── */
+.sim-batch-config {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    margin: 0 10px 10px;
+    border: 1px solid var(--color-border);
+    background: rgba(0, 0, 0, 0.18);
+    min-height: 80px;
+}
+
+.sim-batch-cols {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    overflow: hidden;
+}
+
+.sim-batch-col {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid var(--color-border);
+}
+
+.sim-batch-col:last-child {
+    border-right: none;
+}
+
+.sim-batch-col-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--color-border);
+    background: rgba(0, 255, 249, 0.03);
+    flex-shrink: 0;
+}
+
+.sim-batch-col-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    color: var(--color-primary);
+}
+
+.sim-batch-col-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.sim-batch-action-btn {
+    background: none;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 3px 9px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.sim-batch-action-btn:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.sim-batch-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+}
+
+.sim-batch-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 16px;
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.8px;
+    color: var(--color-text);
+    transition: background 0.1s, color 0.1s;
+    user-select: none;
+}
+
+.sim-batch-item:hover {
+    background: rgba(0, 255, 249, 0.05);
+    color: var(--color-primary);
+}
+
+.sim-batch-check {
+    accent-color: var(--color-primary);
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.sim-batch-placeholder {
+    padding: 14px 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: var(--color-text-dim);
+}
+
+/* ── Simulation progress bar ─────────────────────────────────────────────── */
+.sim-progress {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border);
+    background: rgba(0, 0, 0, 0.15);
+    flex-shrink: 0;
+}
+
+.sim-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+}
+
+.sim-progress-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--color-primary);
+}
+
+.sim-progress-stats {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--color-text-dim);
+}
+
+.sim-progress-track {
+    height: 6px;
+    background: rgba(0, 255, 249, 0.08);
+    border: 1px solid var(--color-border);
+    border-radius: 1px;
+    overflow: hidden;
+    position: relative;
+}
+
+.sim-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--color-primary);
+    box-shadow: 0 0 8px rgba(0, 255, 249, 0.8), 0 0 20px rgba(0, 255, 249, 0.4);
+    border-radius: 1px;
+    transition: width 0.3s ease;
+    position: relative;
+}
+
+.sim-progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 40px;
+    height: 100%;
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.6));
+    animation: sim-scan 1s ease-in-out infinite;
+}
+
+@keyframes sim-scan {
+    0%   { opacity: 0; }
+    50%  { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* ── Simulation container ────────────────────────────────────────────────── */
+#simulationContainer {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* ── Simulation multi-progress (Run All) ─────────────────────────────────── */
+.sim-all-progress {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sim-all-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sim-all-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--color-primary);
+}
+
+.sim-cancel-btn {
+    background: transparent;
+    border: 1px solid var(--color-danger);
+    color: var(--color-danger);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+}
+
+.sim-cancel-btn:hover {
+    box-shadow: 0 0 8px rgba(255, 51, 102, 0.4);
+}
+
+.sim-all-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.sim-all-row {
+    display: grid;
+    grid-template-columns: 68px 1fr 220px;
+    align-items: center;
+    gap: 10px;
+}
+
+.sim-all-row-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--color-text-dim);
+    text-align: right;
+}
+
+.sim-all-row--total .sim-all-row-label {
+    color: var(--color-text);
+}
+
+.sim-all-row--total .sim-progress-track {
+    height: 8px;
+}
+
+.sim-all-row-info {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    color: var(--color-text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sim-progress-fill--accent {
+    background: var(--color-accent);
+    box-shadow: 0 0 8px rgba(0, 255, 0, 0.7), 0 0 18px rgba(0, 255, 0, 0.3);
+}
+
+/* ── Simulation chart ────────────────────────────────────────────────────── */
+.sim-chart-wrap {
+    padding: 12px 16px 4px;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.sim-chart {
+    display: block;
+    width: 100%;
+    max-height: 200px;
+}
+
+.sim-table-wrap {
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* ── Simulation table ────────────────────────────────────────────────────── */
+.simulation-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+}
+
+.simulation-table th,
+.simulation-table td {
+    padding: 8px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    letter-spacing: 1px;
+}
+
+.simulation-table thead th {
+    color: var(--color-primary);
+    font-size: 11px;
+    letter-spacing: 2px;
+    border-bottom: 2px solid var(--color-border);
+    white-space: nowrap;
+}
+
+.simulation-table tbody tr:hover {
+    background: rgba(0, 255, 249, 0.04);
+}
+
+.sim-total-row td {
+    border-top: 2px solid var(--color-border);
+    color: var(--color-text);
+    font-weight: 600;
+    letter-spacing: 1.5px;
+}
+
+.sim-score--good {
+    color: var(--color-accent);
+}
+
+.sim-score--mid {
+    color: var(--color-warning);
+}
+
+.sim-score--bad {
+    color: var(--color-danger);
+}
+
 /* ── Predict table ───────────────────────────────────────────────────────── */
 .predict-table {
     width: 100%;
@@ -1510,6 +1961,14 @@ body {
 .predict-row-num-header {
     width: 28px;
     text-align: center;
+}
+
+.predict-approach-header {
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: default;
 }
 
 .predict-row-num {
