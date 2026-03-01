@@ -647,6 +647,18 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('simCancelBtn')?.addEventListener('click', () => { runAllCancelled = true; });
     document.getElementById('simResultsLoadBtn')?.addEventListener('click', loadSavedSimulations);
 
+    document.getElementById('findSimilarBtn')?.addEventListener('click', findSimilarGames);
+    document.getElementById('tabBtnSimilar')?.addEventListener('click', e => {
+        if (e.target.id === 'closeSimilarTabBtn' || e.target.closest('#closeSimilarTabBtn')) return;
+        switchFootballTab('similar');
+    });
+    document.getElementById('closeSimilarTabBtn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        const tabBtn = document.getElementById('tabBtnSimilar');
+        if (tabBtn) tabBtn.style.display = 'none';
+        switchFootballTab('matches');
+    });
+
     document.getElementById('predictGamesBtn')?.addEventListener('click', predictGames);
     document.getElementById('tabBtnPredict')?.addEventListener('click', e => {
         if (e.target.id === 'closePredictTabBtn' || e.target.closest('#closePredictTabBtn')) return;
@@ -1348,7 +1360,8 @@ function renderFootballContent() {
 // ── Football Rounds & Games ───────────────────────────────────────────────────
 let currentSeasonId = null;
 let currentRound = 1;
-let selectedGames = [];   // accumulates { seasonId, teamHomeId, teamOutId, + display fields }
+let selectedGames = [];       // accumulates { seasonId, teamHomeId, teamOutId, + display fields }
+let matchesSelectedGame = null; // game focused in matches panel for similar-games lookup
 
 function showRoundsTabBtn() {
     const btn = document.getElementById('tabBtnRounds');
@@ -1376,6 +1389,7 @@ function switchFootballTab(tabName) {
         matches:      document.getElementById('footballMatchesPanel'),
         predict:      document.getElementById('footballPredictPanel'),
         predictFull:  document.getElementById('footballPredictFullPanel'),
+        similar:      document.getElementById('footballSimilarPanel'),
         simulation:   document.getElementById('footballSimulationPanel'),
         simResults:   document.getElementById('footballSimResultsPanel'),
     };
@@ -1385,6 +1399,7 @@ function switchFootballTab(tabName) {
         matches:      document.getElementById('tabBtnMatches'),
         predict:      document.getElementById('tabBtnPredict'),
         predictFull:  document.getElementById('tabBtnPredictFull'),
+        similar:      document.getElementById('tabBtnSimilar'),
         simulation:   document.getElementById('tabBtnSimulation'),
         simResults:   document.getElementById('tabBtnSimResults'),
     };
@@ -1415,6 +1430,7 @@ function renderMatchesPanel() {
 
     if (!selectedGames.length) {
         container.innerHTML = '<div class="football-placeholder">NO GAMES SELECTED</div>';
+        updateFindSimilarBtn();
         return;
     }
 
@@ -1435,6 +1451,15 @@ function renderMatchesPanel() {
     selectedGames.forEach((game, idx) => {
         const tr = document.createElement('tr');
         tr.className = 'game-row';
+
+        // Re-apply focus highlight if this game was previously selected
+        if (matchesSelectedGame &&
+            matchesSelectedGame.seasonId   === game.seasonId &&
+            matchesSelectedGame.teamHomeId === game.teamHomeId &&
+            matchesSelectedGame.teamOutId  === game.teamOutId) {
+            tr.classList.add('match-focus');
+        }
+
         tr.innerHTML = `
             <td><img class="game-team-logo" src="${game.homeTeamLogo}" alt=""></td>
             <td>${game.homeTeamName.toUpperCase()}</td>
@@ -1448,14 +1473,43 @@ function renderMatchesPanel() {
             removeSelectedGame(idx);
         });
 
+        tr.addEventListener('click', e => {
+            if (e.target.closest('.match-remove-btn')) return;
+            const isFocused = matchesSelectedGame &&
+                matchesSelectedGame.seasonId   === game.seasonId &&
+                matchesSelectedGame.teamHomeId === game.teamHomeId &&
+                matchesSelectedGame.teamOutId  === game.teamOutId;
+            tbody.querySelectorAll('.game-row').forEach(r => r.classList.remove('match-focus'));
+            if (isFocused) {
+                matchesSelectedGame = null;
+            } else {
+                matchesSelectedGame = game;
+                tr.classList.add('match-focus');
+            }
+            updateFindSimilarBtn();
+        });
+
         tbody.appendChild(tr);
     });
 
     container.innerHTML = '';
     container.appendChild(table);
+    updateFindSimilarBtn();
+}
+
+function updateFindSimilarBtn() {
+    const btn = document.getElementById('findSimilarBtn');
+    if (btn) btn.disabled = !matchesSelectedGame;
 }
 
 function removeSelectedGame(idx) {
+    const removed = selectedGames[idx];
+    if (matchesSelectedGame &&
+        matchesSelectedGame.seasonId   === removed.seasonId &&
+        matchesSelectedGame.teamHomeId === removed.teamHomeId &&
+        matchesSelectedGame.teamOutId  === removed.teamOutId) {
+        matchesSelectedGame = null;
+    }
     selectedGames.splice(idx, 1);
     renderMatchesPanel();
     updateMatchesBadge();
@@ -1489,6 +1543,7 @@ function loadMatchesFromFile(file) {
             const data = JSON.parse(e.target.result);
             if (!Array.isArray(data)) throw new Error('Invalid format');
             selectedGames = data;
+            matchesSelectedGame = null;
             renderMatchesPanel();
             updateMatchesBadge();
             showSuccess(`LOADED ${data.length} MATCH${data.length !== 1 ? 'ES' : ''}`);
@@ -1497,6 +1552,115 @@ function loadMatchesFromFile(file) {
         }
     };
     reader.readAsText(file);
+}
+
+// ── Similar Games ─────────────────────────────────────────────────────────────
+async function findSimilarGames() {
+    if (!matchesSelectedGame) {
+        showError('SELECT A GAME FIRST');
+        return;
+    }
+    const game = matchesSelectedGame;
+    const btn = document.getElementById('findSimilarBtn');
+    if (btn) { btn.textContent = '[ LOADING... ]'; btn.disabled = true; }
+
+    try {
+        const params = new URLSearchParams({
+            seasonId:   game.seasonId,
+            round:      game.round,
+            homeTeamId: game.teamHomeId,
+            awayTeamId: game.teamOutId,
+            threshold:  10
+        });
+        const res = await fetch(`${PREDICTION_API_BASE}/api/Prediction/similar-games?${params}`, {
+            headers: { 'accept': '*/*' }
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const similarGames = await res.json();
+
+        renderSimilarPanel(game, similarGames);
+        const tabBtn = document.getElementById('tabBtnSimilar');
+        if (tabBtn) tabBtn.style.display = '';
+        switchFootballTab('similar');
+    } catch (err) {
+        showError('SIMILAR GAMES FETCH FAILED');
+        console.error(err);
+    } finally {
+        if (btn) { btn.textContent = '[ FIND SIMILAR ]'; btn.disabled = !matchesSelectedGame; }
+    }
+}
+
+function renderSimilarPanel(game, similarGames) {
+    const container = document.getElementById('similarContainer');
+    if (!container) return;
+
+    const DISPLAY_LIMIT = 100;
+    const total     = similarGames.length;
+    const homeWins  = similarGames.filter(g => g.result === '1').length;
+    const draws     = similarGames.filter(g => g.result === 'X').length;
+    const awayWins  = similarGames.filter(g => g.result === '2').length;
+    const pct       = n => total > 0 ? Math.round(n / total * 100) : 0;
+    const hasScore  = game.homeFullTimeScore != null && game.outFullTimeScore != null;
+    const scoreStr  = hasScore ? `${game.homeFullTimeScore} - ${game.outFullTimeScore}` : 'VS';
+    const displayGames = similarGames.slice(0, DISPLAY_LIMIT);
+
+    const rows = displayGames.map(g => {
+        const resultLabel = g.result === '1' ? 'HOME WIN' : g.result === 'X' ? 'DRAW' : 'AWAY WIN';
+        const resultClass = g.result === '1' ? 'result-home' : g.result === 'X' ? 'result-draw' : 'result-away';
+        const simDots = '●'.repeat(Math.max(1, 11 - g.similarityScore));
+        return `<tr class="game-row">
+            <td>${g.seasonId}</td>
+            <td class="game-status">${g.round}</td>
+            <td class="game-score">${g.homeGoals}-${g.awayGoals}</td>
+            <td><span class="similar-result ${resultClass}">${resultLabel}</span></td>
+            <td class="similar-sim-dots" title="Similarity score: ${g.similarityScore}">${simDots}</td>
+        </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="similar-game-card">
+            <div class="similar-game-teams">
+                <img class="game-team-logo" src="${game.homeTeamLogo}" alt="">
+                <span class="similar-team-name">${game.homeTeamName.toUpperCase()}</span>
+                <span class="similar-score">${scoreStr}</span>
+                <span class="similar-team-name">${game.awayTeamName.toUpperCase()}</span>
+                <img class="game-team-logo" src="${game.awayTeamLogo}" alt="">
+            </div>
+            <div class="similar-game-meta">ROUND ${game.round}</div>
+        </div>
+        <div class="similar-outcomes">
+            <div class="similar-outcomes-label">OUTCOMES ACROSS ${total.toLocaleString()} SIMILAR GAMES</div>
+            <div class="similar-outcome-row">
+                <span class="similar-outcome-lbl">HOME WIN</span>
+                <div class="similar-outcome-bar"><div class="similar-outcome-fill similar-fill--home" style="width:${pct(homeWins)}%"></div></div>
+                <span class="similar-outcome-pct">${pct(homeWins)}%</span>
+            </div>
+            <div class="similar-outcome-row">
+                <span class="similar-outcome-lbl">DRAW</span>
+                <div class="similar-outcome-bar"><div class="similar-outcome-fill similar-fill--draw" style="width:${pct(draws)}%"></div></div>
+                <span class="similar-outcome-pct">${pct(draws)}%</span>
+            </div>
+            <div class="similar-outcome-row">
+                <span class="similar-outcome-lbl">AWAY WIN</span>
+                <div class="similar-outcome-bar"><div class="similar-outcome-fill similar-fill--away" style="width:${pct(awayWins)}%"></div></div>
+                <span class="similar-outcome-pct">${pct(awayWins)}%</span>
+            </div>
+        </div>
+        <div class="similar-list-header">
+            SHOWING TOP ${Math.min(DISPLAY_LIMIT, total).toLocaleString()} OF ${total.toLocaleString()} SIMILAR GAMES
+        </div>
+        <table class="games-table">
+            <thead>
+                <tr>
+                    <th>SEASON</th>
+                    <th>RND</th>
+                    <th>SCORE</th>
+                    <th>RESULT</th>
+                    <th>SIMILARITY</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>`;
 }
 
 async function loadGames(seasonId, round) {

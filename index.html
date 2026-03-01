@@ -262,6 +262,9 @@
                         <button class="football-tab-btn" id="tabBtnPredictFull" style="display:none">
                             PREDICT FULL <span class="football-tab-close" id="closePredictFullTabBtn">×</span>
                         </button>
+                        <button class="football-tab-btn" id="tabBtnSimilar" style="display:none">
+                            SIMILAR <span class="football-tab-close" id="closeSimilarTabBtn">×</span>
+                        </button>
                         <button class="football-tab-btn" id="tabBtnSimulation">
                             SIMULATION
                         </button>
@@ -305,10 +308,18 @@
                             <button class="matches-toolbar-btn" id="saveMatchesBtn">[ SAVE FILE ]</button>
                             <button class="matches-toolbar-btn" id="loadMatchesBtn">[ LOAD FILE ]</button>
                             <input type="file" id="loadMatchesInput" accept=".json" style="display:none">
+                            <button class="matches-toolbar-btn matches-toolbar-btn--similar" id="findSimilarBtn" disabled>[ FIND SIMILAR ]</button>
                             <button class="matches-toolbar-btn matches-toolbar-btn--predict" id="predictGamesBtn">[ PREDICT GAMES ]</button>
                         </div>
                         <div id="matchesContainer">
                             <div class="football-placeholder">NO GAMES SELECTED</div>
+                        </div>
+                    </div>
+
+                    <!-- Similar Games panel -->
+                    <div class="football-rounds-panel" id="footballSimilarPanel" style="display:none">
+                        <div id="similarContainer">
+                            <div class="football-placeholder">SELECT A GAME AND CLICK FIND SIMILAR</div>
                         </div>
                     </div>
 
