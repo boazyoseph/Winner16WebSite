@@ -1563,6 +1563,20 @@ body {
     cursor: not-allowed;
 }
 
+.sim-delete-btn {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+
+.sim-delete-btn:hover:not(:disabled) {
+    box-shadow: 0 0 10px rgba(255, 51, 102, 0.3);
+}
+
+.sim-delete-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
 .sim-run-all-btn {
     border-color: var(--color-warning);
     color: var(--color-warning);

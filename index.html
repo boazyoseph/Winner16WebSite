@@ -333,6 +333,7 @@
                                 </select>
                             </div>
                             <button class="matches-toolbar-btn sim-run-btn" id="simResultsLoadBtn">[ LOAD RESULTS ]</button>
+                            <button class="matches-toolbar-btn sim-delete-btn" id="simResultsDeleteBtn">[ DELETE RESULTS ]</button>
                         </div>
                         <div id="simResultsContainer">
                             <div class="football-placeholder">SELECT FILTERS AND CLICK LOAD</div>
@@ -351,6 +352,7 @@
                             <button class="matches-toolbar-btn sim-run-btn" id="simRunBtn">[ RUN SIMULATION ]</button>
                             <button class="matches-toolbar-btn sim-save-btn" id="simSaveBtn" disabled>[ SAVE RESULTS ]</button>
                             <button class="matches-toolbar-btn sim-run-all-btn" id="simRunAllBtn">[ RUN BATCH ]</button>
+                            <button class="matches-toolbar-btn sim-log-btn" id="simLogBtn">[ LOG ]</button>
                         </div>
 
                         <!-- Running Batch Status Pane (top) -->
@@ -468,6 +470,21 @@
                 </div>
                 <div class="settings-area">
                     <div class="settings-section" id="sectionSystem">
+                        <div class="settings-group">
+                            <div class="settings-group-title">SERVER ENDPOINT</div>
+                            <div class="settings-row">
+                                <div class="settings-info">
+                                    <span class="settings-label">LOCAL SERVER</span>
+                                    <span class="settings-desc">Use local endpoint (localhost:12802) instead of access server (localhost:12410)</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="localServerToggle">
+                                    <span class="toggle-track">
+                                        <span class="toggle-thumb"></span>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
                         <div class="settings-group">
                             <div class="settings-group-title">HEALTH MONITORING</div>
                             <div class="settings-row">

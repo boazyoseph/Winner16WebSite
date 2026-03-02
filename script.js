@@ -1,7 +1,17 @@
 const welcomeMessage = "> SECURE TERMINAL v3.14.159 // Enter credentials to proceed...";
 
+// ── Server endpoint configuration ─────────────────────────────────────────────
+const LOCAL_API_BASE  = 'http://localhost:12802';
+const ACCESS_API_BASE = 'http://localhost:12410';
+
+// Reset to remote server on every page load; user can switch to local via Settings
+localStorage.setItem('useLocalServer', 'false');
+
+function getApiBase() {
+    return localStorage.getItem('useLocalServer') === 'true' ? LOCAL_API_BASE : ACCESS_API_BASE;
+}
+
 // ── Health-check polling ──────────────────────────────────────────────────────
-const PING_URL = 'http://localhost:12410/api/Ping';
 const PING_INTERVAL = 15000; // 15 s
 
 function applyPingStatus(state, label) {
@@ -16,7 +26,7 @@ function applyPingStatus(state, label) {
 
 async function checkPingStatus() {
     try {
-        const res = await fetch(PING_URL, {
+        const res = await fetch(getApiBase() + '/api/Ping', {
             method: 'GET',
             headers: { 'accept': '*/*' },
             signal: AbortSignal.timeout(5000)
@@ -38,8 +48,11 @@ async function checkPingStatus() {
     }
 }
 
-checkPingStatus();
-let pingIntervalId = setInterval(checkPingStatus, PING_INTERVAL);
+let pingIntervalId = null;
+if (localStorage.getItem('healthMonitoring') !== 'false') {
+    checkPingStatus();
+    pingIntervalId = setInterval(checkPingStatus, PING_INTERVAL);
+}
 
 function setHealthMonitoring(enabled) {
     if (enabled) {
@@ -142,7 +155,7 @@ function handleLogin() {
     loginBtn.textContent = 'ACCESSING...';
 
     // Call .NET backend API
-    fetch('http://localhost:12410/api/Login', {
+    fetch(getApiBase() + '/api/Login', {
         method: 'POST',
         headers: {
             'accept': '*/*',
@@ -442,7 +455,7 @@ function handleRegistration(e) {
     registerBtn.disabled = true;
 
     // Call registration API
-    fetch('http://localhost:12410/api/User/account', {
+    fetch(getApiBase() + '/api/User/account', {
         method: 'POST',
         headers: {
             'accept': '*/*',
@@ -564,9 +577,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('tttReset')?.addEventListener('click', resetTtt);
 
-    document.getElementById('healthToggle')?.addEventListener('change', e => {
-        setHealthMonitoring(e.target.checked);
-    });
+    const healthToggle = document.getElementById('healthToggle');
+    if (healthToggle) {
+        healthToggle.checked = localStorage.getItem('healthMonitoring') !== 'false';
+        healthToggle.addEventListener('change', e => {
+            localStorage.setItem('healthMonitoring', e.target.checked);
+            setHealthMonitoring(e.target.checked);
+        });
+    }
+
+    const localServerToggle = document.getElementById('localServerToggle');
+    if (localServerToggle) {
+        localServerToggle.checked = localStorage.getItem('useLocalServer') === 'true';
+        localServerToggle.addEventListener('change', e => {
+            localStorage.setItem('useLocalServer', e.target.checked);
+            checkPingStatus();
+        });
+    }
 
     // Board click via event delegation
     document.getElementById('tttBoard')?.addEventListener('click', e => {
@@ -646,6 +673,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('simRunAllBtn')?.addEventListener('click', runAllApproaches);
     document.getElementById('simCancelBtn')?.addEventListener('click', () => { runAllCancelled = true; });
     document.getElementById('simResultsLoadBtn')?.addEventListener('click', loadSavedSimulations);
+    document.getElementById('simResultsDeleteBtn')?.addEventListener('click', deleteSimulationResults);
 
     document.getElementById('findSimilarBtn')?.addEventListener('click', findSimilarGames);
     document.getElementById('tabBtnSimilar')?.addEventListener('click', e => {
@@ -926,12 +954,11 @@ function resetTtt() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Prediction API ────────────────────────────────────────────────────────────
-const PREDICTION_API_BASE = 'http://localhost:12410';
 let cachedApproaches = null;
 
 async function loadPredictionApproaches() {
     if (cachedApproaches) return cachedApproaches;
-    const res = await fetch(`${PREDICTION_API_BASE}/api/Prediction/approaches`, {
+    const res = await fetch(`${getApiBase()}/api/Prediction/approaches`, {
         headers: { 'accept': '*/*' }
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -954,7 +981,7 @@ async function predictGames() {
             selectedGames.map(game =>
                 Promise.all(
                     approaches.map(approach =>
-                        fetch(`${PREDICTION_API_BASE}/api/Prediction/predict?homeTeamId=${game.teamHomeId}&awayTeamId=${game.teamOutId}&seasonId=${game.seasonId}&approach=${approach.index}`, {
+                        fetch(`${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamHomeId}&awayTeamId=${game.teamOutId}&seasonId=${game.seasonId}&round=${game.round}&approach=${approach.index}`, {
                             headers: { 'accept': '*/*' }
                         }).then(r => r.ok ? r.json() : null).catch(() => null)
                     )
@@ -1160,7 +1187,6 @@ function renderPredictFullPanel(approaches, allPredictions) {
 }
 
 // ── Football API ──────────────────────────────────────────────────────────────
-const FOOTBALL_API_BASE = 'http://localhost:12410';
 let footballCountries = [];
 let countriesLoaded = false;
 
@@ -1174,7 +1200,7 @@ async function loadFootballCountries() {
     select.disabled = true;
 
     try {
-        const res = await fetch(`${FOOTBALL_API_BASE}/api/Football/countries`, {
+        const res = await fetch(`${getApiBase()}/api/Football/countries`, {
             headers: { 'accept': '*/*' }
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1217,7 +1243,7 @@ async function populateLeagueSelect(countryId) {
     leagueSelect.innerHTML = '<option value="">-- LOADING... --</option>';
 
     try {
-        const res = await fetch(`${FOOTBALL_API_BASE}/api/Football/countries/${countryId}/leagues`, {
+        const res = await fetch(`${getApiBase()}/api/Football/countries/${countryId}/leagues`, {
             headers: { 'accept': '*/*' }
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1265,7 +1291,7 @@ async function populateSeasonSelect(leagueId) {
     seasonSelect.innerHTML = '<option value="">-- LOADING... --</option>';
 
     try {
-        const res = await fetch(`${FOOTBALL_API_BASE}/api/Football/leagues/${leagueId}/seasons`, {
+        const res = await fetch(`${getApiBase()}/api/Football/leagues/${leagueId}/seasons`, {
             headers: { 'accept': '*/*' }
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1572,7 +1598,7 @@ async function findSimilarGames() {
             awayTeamId: game.teamOutId,
             threshold:  10
         });
-        const res = await fetch(`${PREDICTION_API_BASE}/api/Prediction/similar-games?${params}`, {
+        const res = await fetch(`${getApiBase()}/api/Prediction/similar-games?${params}`, {
             headers: { 'accept': '*/*' }
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1674,7 +1700,7 @@ async function loadGames(seasonId, round) {
     if (nextBtn) nextBtn.disabled = false;
 
     try {
-        const res = await fetch(`${FOOTBALL_API_BASE}/api/Football/seasons/${seasonId}/rounds/${round}/games`, {
+        const res = await fetch(`${getApiBase()}/api/Football/seasons/${seasonId}/rounds/${round}/games`, {
             headers: { 'accept': '*/*' }
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1774,7 +1800,7 @@ async function loadStandings(seasonId) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;letter-spacing:2px;color:var(--color-text-dim)">LOADING...</td></tr>';
 
     try {
-        const res = await fetch(`${FOOTBALL_API_BASE}/api/Football/seasons/${seasonId}/standings`, {
+        const res = await fetch(`${getApiBase()}/api/Football/seasons/${seasonId}/standings`, {
             headers: { 'accept': '*/*' }
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1847,7 +1873,7 @@ async function loadBatchLeagues(countryId) {
     list.innerHTML = '<div class="sim-batch-placeholder">LOADING...</div>';
 
     try {
-        const res = await fetch(`${FOOTBALL_API_BASE}/api/Football/countries/${countryId}/leagues`, { headers: { 'accept': '*/*' } });
+        const res = await fetch(`${getApiBase()}/api/Football/countries/${countryId}/leagues`, { headers: { 'accept': '*/*' } });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const leagues = await res.json();
         batchLeaguesData = leagues.map(l => ({ id: l.id, name: l.name, seasons: null }));
@@ -1896,7 +1922,7 @@ async function refreshBatchSeasons() {
         if (!league) continue;
         if (!league.seasons) {
             try {
-                const res = await fetch(`${FOOTBALL_API_BASE}/api/Football/leagues/${league.id}/seasons`, { headers: { 'accept': '*/*' } });
+                const res = await fetch(`${getApiBase()}/api/Football/leagues/${league.id}/seasons`, { headers: { 'accept': '*/*' } });
                 league.seasons = res.ok ? (await res.json()).filter(s => !s.isActive) : [];
             } catch { league.seasons = []; }
         }
@@ -2022,7 +2048,7 @@ async function runSimulation() {
         while (true) {
             updateProgress(round, runningCorrect, runningTotal - runningFailed, runningFailed);
 
-            const res = await fetch(`${FOOTBALL_API_BASE}/api/Football/seasons/${seasonId}/rounds/${round}/games`, {
+            const res = await fetch(`${getApiBase()}/api/Football/seasons/${seasonId}/rounds/${round}/games`, {
                 headers: { 'accept': '*/*' }
             });
             if (!res.ok) break;
@@ -2038,16 +2064,20 @@ async function runSimulation() {
 
                 try {
                     const predRes = await fetch(
-                        `${PREDICTION_API_BASE}/api/Prediction/predict?homeTeamId=${game.teamIdHome}&awayTeamId=${game.teamIdOut}&seasonId=${seasonId}&approach=${approachIndex}`,
+                        `${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamIdHome}&awayTeamId=${game.teamIdOut}&seasonId=${seasonId}&round=${round}&approach=${approachIndex}`,
                         { headers: { 'accept': '*/*' } }
                     );
-                    if (!predRes.ok) return { apiError: true }; // finished but prediction failed
+                    if (!predRes.ok) {
+                        console.warn(`[SIM] Predict failed — round=${round} home=${game.teamIdHome} away=${game.teamIdOut} status=${predRes.status}`);
+                        return { apiError: true };
+                    }
                     const pred = await predRes.json();
                     const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
                     const predicted = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
                     return { apiError: false, isCorrect: predicted === actual };
-                } catch {
-                    return { apiError: true }; // finished but prediction failed
+                } catch (err) {
+                    console.warn(`[SIM] Predict error — round=${round} home=${game.teamIdHome} away=${game.teamIdOut}`, err);
+                    return { apiError: true };
                 }
             }));
 
@@ -2267,7 +2297,7 @@ async function loadSavedSimulations() {
         if (currentSeasonId)   params.set('seasonId', currentSeasonId);
 
         const qs  = params.toString();
-        const url = `${PREDICTION_API_BASE}/api/Prediction/simulation${qs ? '?' + qs : ''}`;
+        const url = `${getApiBase()}/api/Prediction/simulation${qs ? '?' + qs : ''}`;
         const res = await fetch(url, { headers: { 'accept': '*/*' } });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
@@ -2279,6 +2309,38 @@ async function loadSavedSimulations() {
         console.error(err);
     } finally {
         if (btn) { btn.textContent = '[ LOAD RESULTS ]'; btn.disabled = false; }
+    }
+}
+
+async function deleteSimulationResults() {
+    const approachVal = document.getElementById('simResultsApproachSelect')?.value;
+    const btn = document.getElementById('simResultsDeleteBtn');
+
+    if (approachVal === '') {
+        showError('SELECT AN APPROACH TO DELETE');
+        return;
+    }
+
+    if (!confirm('DELETE all saved simulation results for this approach? This cannot be undone.')) return;
+
+    if (btn) { btn.textContent = '[ DELETING... ]'; btn.disabled = true; }
+
+    try {
+        const params = new URLSearchParams();
+        params.set('approach', approachVal);
+        if (currentSeasonId) params.set('seasonId', currentSeasonId);
+
+        const url = `${getApiBase()}/api/Prediction/simulation?${params.toString()}`;
+        const res = await fetch(url, { method: 'DELETE', headers: { 'accept': '*/*' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        showSuccess('SIMULATION RESULTS DELETED');
+        await loadSavedSimulations();
+    } catch (err) {
+        showError('FAILED TO DELETE SIMULATION RESULTS');
+        console.error(err);
+    } finally {
+        if (btn) { btn.textContent = '[ DELETE RESULTS ]'; btn.disabled = false; }
     }
 }
 
@@ -2404,7 +2466,7 @@ async function runAllApproaches() {
 
             // Use cached seasons from batch UI if available, else fetch
             if (!league.seasons) {
-                const res = await fetch(`${FOOTBALL_API_BASE}/api/Football/leagues/${league.id}/seasons`, { headers: { 'accept': '*/*' } });
+                const res = await fetch(`${getApiBase()}/api/Football/leagues/${league.id}/seasons`, { headers: { 'accept': '*/*' } });
                 league.seasons = res.ok ? (await res.json()).filter(s => !s.isActive) : [];
             }
 
@@ -2463,7 +2525,7 @@ async function runAllApproaches() {
                             (saveErrors ? ` · ${saveErrors} ERRORS` : ''));
 
                         const res = await fetch(
-                            `${FOOTBALL_API_BASE}/api/Football/seasons/${seasonId}/rounds/${round}/games`,
+                            `${getApiBase()}/api/Football/seasons/${seasonId}/rounds/${round}/games`,
                             { headers: { 'accept': '*/*' } }
                         );
                         if (!res.ok) break;
@@ -2477,15 +2539,21 @@ async function runAllApproaches() {
                             const actual = hs > as_ ? '1' : hs < as_ ? '2' : 'X';
                             try {
                                 const predRes = await fetch(
-                                    `${PREDICTION_API_BASE}/api/Prediction/predict?homeTeamId=${game.teamIdHome}&awayTeamId=${game.teamIdOut}&seasonId=${seasonId}&approach=${approach.index}`,
+                                    `${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamIdHome}&awayTeamId=${game.teamIdOut}&seasonId=${seasonId}&round=${round}&approach=${approach.index}`,
                                     { headers: { 'accept': '*/*' } }
                                 );
-                                if (!predRes.ok) return { apiError: true };
+                                if (!predRes.ok) {
+                                    console.warn(`[RUN-ALL] Predict failed — season=${seasonId} round=${round} approach=${approach.index} home=${game.teamIdHome} away=${game.teamIdOut} status=${predRes.status}`);
+                                    return { apiError: true };
+                                }
                                 const pred = await predRes.json();
                                 const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
                                 const predicted = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
                                 return { apiError: false, isCorrect: predicted === actual };
-                            } catch { return { apiError: true }; }
+                            } catch (err) {
+                                console.warn(`[RUN-ALL] Predict error — season=${seasonId} round=${round} approach=${approach.index} home=${game.teamIdHome} away=${game.teamIdOut}`, err);
+                                return { apiError: true };
+                            }
                         }));
 
                         const finished   = gameResults.filter(g => g !== null);
@@ -2496,12 +2564,15 @@ async function runAllApproaches() {
 
                         try {
                             const saveRes = await fetch(
-                                `${PREDICTION_API_BASE}/api/Prediction/simulation?seasonId=${seasonId}&round=${round}&approach=${approach.index}&score=${score}`,
+                                `${getApiBase()}/api/Prediction/simulation?seasonId=${seasonId}&round=${round}&approach=${approach.index}&score=${score}`,
                                 { method: 'POST', headers: { 'accept': '*/*' } }
                             );
-                            if (!saveRes.ok) throw new Error();
+                            if (!saveRes.ok) throw new Error(`HTTP ${saveRes.status}`);
                             roundsSaved++;
-                        } catch { saveErrors++; }
+                        } catch (err) {
+                            console.warn(`[RUN-ALL] Save failed — season=${seasonId} round=${round} approach=${approach.index}`, err);
+                            saveErrors++;
+                        }
 
                         round++;
                     }
@@ -2561,7 +2632,7 @@ async function saveSimulationResults() {
             const successful = r.total - r.failed;
             const score = successful > 0 ? r.correct / successful : 0;
             return fetch(
-                `${PREDICTION_API_BASE}/api/Prediction/simulation?seasonId=${seasonId}&round=${r.round}&approach=${approachIndex}&score=${score}`,
+                `${getApiBase()}/api/Prediction/simulation?seasonId=${seasonId}&round=${r.round}&approach=${approachIndex}&score=${score}`,
                 { method: 'POST', headers: { 'accept': '*/*' } }
             ).then(res => { if (!res.ok) throw new Error(`Round ${r.round}: HTTP ${res.status}`); });
         }));
