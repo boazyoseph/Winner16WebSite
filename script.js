@@ -604,6 +604,38 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const exportFileName = document.getElementById('exportFileName');
+    if (exportFileName) {
+        exportFileName.value = localStorage.getItem('exportFileName') ?? 'Winner16-{datetime}';
+        exportFileName.addEventListener('change', e => {
+            localStorage.setItem('exportFileName', e.target.value.trim() || 'Winner16-{datetime}');
+        });
+    }
+
+    // Restore saved folder name in the read-only path field
+    loadFolderHandle().then(handle => {
+        if (handle) {
+            const pathEl = document.getElementById('exportFolderPath');
+            if (pathEl) pathEl.value = handle.name;
+        }
+    });
+
+    document.getElementById('exportFolderBrowseBtn')?.addEventListener('click', async () => {
+        if (!window.showDirectoryPicker) {
+            showError('FOLDER PICKER NOT SUPPORTED IN THIS BROWSER');
+            return;
+        }
+        try {
+            const handle = await window.showDirectoryPicker({ mode: 'read' });
+            await saveFolderHandle(handle);
+            const pathEl = document.getElementById('exportFolderPath');
+            if (pathEl) pathEl.value = handle.name;
+            showSuccess('DEFAULT FOLDER SET');
+        } catch (err) {
+            if (err.name !== 'AbortError') showError('FOLDER SELECT FAILED');
+        }
+    });
+
     // Board click via event delegation
     document.getElementById('tttBoard')?.addEventListener('click', e => {
         const cell = e.target.closest('.ttt-cell');
@@ -792,8 +824,25 @@ document.addEventListener('DOMContentLoaded', () => {
     })();
 
     document.getElementById('saveMatchesBtn')?.addEventListener('click', saveMatchesToFile);
-    document.getElementById('loadMatchesBtn')?.addEventListener('click', () => {
-        document.getElementById('loadMatchesInput').click();
+    document.getElementById('saveMatchesDbBtn')?.addEventListener('click', saveMatchesToDb);
+    document.getElementById('loadMatchesDbBtn')?.addEventListener('click', loadMatchesFromDb);
+    document.getElementById('loadMatchesBtn')?.addEventListener('click', async () => {
+        if (window.showOpenFilePicker) {
+            try {
+                const startIn = await getExportStartIn();
+                const [handle] = await window.showOpenFilePicker({
+                    startIn,
+                    types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }],
+                    multiple: false,
+                });
+                const file = await handle.getFile();
+                loadMatchesFromFile(file);
+            } catch (err) {
+                if (err.name !== 'AbortError') showError('LOAD FAILED');
+            }
+        } else {
+            document.getElementById('loadMatchesInput').click();
+        }
     });
     document.getElementById('loadMatchesInput')?.addEventListener('change', e => {
         if (e.target.files[0]) loadMatchesFromFile(e.target.files[0]);
@@ -1592,20 +1641,103 @@ function removeSelectedGame(idx) {
     }
 }
 
+// ── Export folder handle (IndexedDB) ──────────────────────────────────────────
+const FOLDER_DB_NAME = 'winner16-settings';
+const FOLDER_STORE   = 'folderHandles';
+const FOLDER_KEY     = 'exportFolder';
+
+function openFolderDb() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(FOLDER_DB_NAME, 1);
+        req.onupgradeneeded = e => e.target.result.createObjectStore(FOLDER_STORE);
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror   = e => reject(e.target.error);
+    });
+}
+
+async function saveFolderHandle(handle) {
+    const db = await openFolderDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(FOLDER_STORE, 'readwrite');
+        tx.objectStore(FOLDER_STORE).put(handle, FOLDER_KEY);
+        tx.oncomplete = resolve;
+        tx.onerror    = e => reject(e.target.error);
+    });
+}
+
+async function loadFolderHandle() {
+    try {
+        const db = await openFolderDb();
+        return await new Promise((resolve, reject) => {
+            const tx = db.transaction(FOLDER_STORE, 'readonly');
+            const req = tx.objectStore(FOLDER_STORE).get(FOLDER_KEY);
+            req.onsuccess = e => resolve(e.target.result ?? null);
+            req.onerror   = e => reject(e.target.error);
+        });
+    } catch {
+        return null;
+    }
+}
+
+async function getExportStartIn() {
+    const handle = await loadFolderHandle();
+    if (handle) {
+        try {
+            const perm = await handle.queryPermission({ mode: 'read' });
+            if (perm === 'granted') return handle;
+        } catch { /* ignore */ }
+    }
+    return 'downloads';
+}
+
 // ── Matches file save / load ──────────────────────────────────────────────────
-function saveMatchesToFile() {
+function buildExportFilename() {
+    const pattern = localStorage.getItem('exportFileName') ?? 'Winner16-{datetime}';
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const datetime =
+        now.getFullYear() +
+        pad(now.getMonth() + 1) +
+        pad(now.getDate()) + '-' +
+        pad(now.getHours()) +
+        pad(now.getMinutes()) +
+        pad(now.getSeconds());
+    return pattern.replace('{datetime}', datetime) + '.json';
+}
+
+async function saveMatchesToFile() {
     if (!selectedGames.length) {
         showError('NO GAMES TO SAVE');
         return;
     }
-    const blob = new Blob([JSON.stringify(selectedGames, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'matches.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    showSuccess('MATCHES SAVED');
+    const json = JSON.stringify(selectedGames, null, 2);
+    const suggestedName = buildExportFilename();
+    if (window.showSaveFilePicker) {
+        try {
+            const startIn = await getExportStartIn();
+            const handle = await window.showSaveFilePicker({
+                suggestedName,
+                startIn,
+                types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(json);
+            await writable.close();
+            showSuccess('MATCHES SAVED');
+        } catch (err) {
+            if (err.name !== 'AbortError') showError('SAVE FAILED');
+        }
+    } else {
+        // Fallback for browsers without File System Access API
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = suggestedName;
+        a.click();
+        URL.revokeObjectURL(url);
+        showSuccess('MATCHES SAVED');
+    }
 }
 
 function loadMatchesFromFile(file) {
@@ -1624,6 +1756,65 @@ function loadMatchesFromFile(file) {
         }
     };
     reader.readAsText(file);
+}
+
+async function saveMatchesToDb() {
+    if (!selectedGames.length) {
+        showError('NO GAMES TO SAVE');
+        return;
+    }
+    const winner16Id = document.getElementById('winner16IdInput')?.value?.trim();
+    if (!winner16Id) {
+        showError('ENTER WINNER16 ID');
+        return;
+    }
+    try {
+        const res = await fetch(`${getApiBase()}/api/Prediction/games`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'accept': '*/*' },
+            body: JSON.stringify({ winner16Id, games: selectedGames.map((g, i) => ({ ...g, gameId: i + 1 })) }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showSuccess('MATCHES SAVED TO DB');
+    } catch (err) {
+        showError('DB SAVE FAILED');
+    }
+}
+
+async function loadMatchesFromDb() {
+    const winner16Id = document.getElementById('winner16IdInput')?.value?.trim();
+    if (!winner16Id) {
+        showError('ENTER WINNER16 ID');
+        return;
+    }
+    try {
+        const res = await fetch(`${getApiBase()}/api/Prediction/games?winner16Id=${encodeURIComponent(winner16Id)}`, {
+            headers: { 'accept': 'application/json' },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        console.log('[loadMatchesFromDb] raw response:', data);
+        const games = Array.isArray(data) ? data : (data.games ?? data.matches ?? data.data ?? []);
+        if (!Array.isArray(games)) throw new Error('Invalid response');
+        selectedGames = games.map(g => ({
+            seasonId:          g.seasonId          ?? g.SeasonId,
+            teamHomeId:        g.teamHomeId        ?? g.TeamHomeId,
+            teamOutId:         g.teamOutId         ?? g.TeamOutId,
+            homeTeamName:      g.homeTeamName      ?? g.HomeTeamName      ?? '',
+            awayTeamName:      g.awayTeamName      ?? g.AwayTeamName      ?? '',
+            homeTeamLogo:      g.homeTeamLogo      ?? g.HomeTeamLogo      ?? '',
+            awayTeamLogo:      g.awayTeamLogo      ?? g.AwayTeamLogo      ?? '',
+            homeFullTimeScore: g.homeFullTimeScore ?? g.HomeFullTimeScore,
+            outFullTimeScore:  g.outFullTimeScore  ?? g.OutFullTimeScore,
+            round:             g.round             ?? g.Round,
+        }));
+        matchesSelectedGame = null;
+        renderMatchesPanel();
+        updateMatchesBadge();
+        showSuccess(`LOADED ${games.length} MATCH${games.length !== 1 ? 'ES' : ''} FROM DB`);
+    } catch (err) {
+        showError('DB LOAD FAILED');
+    }
 }
 
 // ── Similar Games ─────────────────────────────────────────────────────────────
