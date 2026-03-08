@@ -595,6 +595,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const bestApproachesCount = document.getElementById('bestApproachesCount');
+    if (bestApproachesCount) {
+        const saved = localStorage.getItem('bestApproachesCount') ?? '5';
+        bestApproachesCount.value = saved;
+        bestApproachesCount.addEventListener('change', e => {
+            localStorage.setItem('bestApproachesCount', e.target.value);
+        });
+    }
+
     // Board click via event delegation
     document.getElementById('tttBoard')?.addEventListener('click', e => {
         const cell = e.target.closest('.ttt-cell');
@@ -605,20 +614,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Football cascading dropdowns
     document.getElementById('countrySelect')?.addEventListener('change', async e => {
         clearStandings();
+        clearSimulationPage();
         hideRoundsTabBtn();
         currentSeasonId = null;
         batchLastCountryId = null; // reset so batch reloads on next sim tab open
         await populateLeagueSelect(e.target.value);
         renderFootballContent();
+        loadBatchData();
     });
     document.getElementById('leagueSelect')?.addEventListener('change', async e => {
         clearStandings();
+        clearSimulationPage();
         hideRoundsTabBtn();
         currentSeasonId = null;
         await populateSeasonSelect(e.target.value);
         renderFootballContent();
     });
     document.getElementById('seasonSelect')?.addEventListener('change', async e => {
+        clearSimulationPage();
         renderFootballContent();
         if (e.target.value) {
             currentSeasonId = parseInt(e.target.value);
@@ -966,6 +979,24 @@ async function loadPredictionApproaches() {
     return cachedApproaches;
 }
 
+async function loadBestPredictionApproaches() {
+    const top = parseInt(localStorage.getItem('bestApproachesCount') ?? '5', 10);
+    const allApproaches = await loadPredictionApproaches();
+    if (top === 0) return allApproaches;
+    const params = new URLSearchParams({ top });
+    if (currentSeasonId) params.set('seasonId', currentSeasonId);
+    const res = await fetch(`${getApiBase()}/api/Prediction/best-approaches?${params}`, {
+        headers: { 'accept': '*/*' }
+    });
+    if (!res.ok) return allApproaches;
+    const best = await res.json().catch(() => []);
+    if (!best.length) return allApproaches;
+    // Normalize: find each returned entry in allApproaches by index field (handles any field name variant)
+    const indexSet = new Set(best.map(b => b.index ?? b.approachIndex ?? b.approach ?? b.id));
+    const matched = allApproaches.filter(a => indexSet.has(a.index));
+    return matched.length ? matched : allApproaches;
+}
+
 async function predictGames() {
     if (!selectedGames.length) {
         showError('NO GAMES SELECTED');
@@ -975,20 +1006,35 @@ async function predictGames() {
     if (btn) { btn.textContent = '[ LOADING... ]'; btn.disabled = true; }
 
     try {
-        const approaches = await loadPredictionApproaches();
+        console.log('[PREDICT] Fetching best approaches...');
+        const approaches = await loadBestPredictionApproaches();
+        console.log('[PREDICT] Best approaches:', approaches);
 
         const allPredictions = await Promise.all(
             selectedGames.map(game =>
                 Promise.all(
-                    approaches.map(approach =>
-                        fetch(`${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamHomeId}&awayTeamId=${game.teamOutId}&seasonId=${game.seasonId}&round=${game.round}&approach=${approach.index}`, {
-                            headers: { 'accept': '*/*' }
-                        }).then(r => r.ok ? r.json() : null).catch(() => null)
-                    )
+                    approaches.map(async approach => {
+                        const url = `${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamHomeId}&awayTeamId=${game.teamOutId}&seasonId=${game.seasonId}&round=${game.round}&approach=${approach.index}`;
+                        console.log(`[PREDICT] Fetching: ${url}`);
+                        try {
+                            const r = await fetch(url, { headers: { 'accept': '*/*' } });
+                            if (!r.ok) {
+                                console.warn(`[PREDICT] HTTP ${r.status} for approach ${approach.index} (${approach.name}):`, await r.text().catch(() => ''));
+                                return null;
+                            }
+                            const data = await r.json();
+                            console.log(`[PREDICT] Result approach=${approach.index}:`, data);
+                            return data;
+                        } catch (fetchErr) {
+                            console.error(`[PREDICT] Fetch error for approach ${approach.index}:`, fetchErr);
+                            return null;
+                        }
+                    })
                 )
             )
         );
 
+        console.log('[PREDICT] All predictions:', allPredictions);
         renderPredictPanel(approaches, allPredictions);
         renderPredictFullPanel(approaches, allPredictions);
         const tabBtn = document.getElementById('tabBtnPredict');
@@ -998,7 +1044,7 @@ async function predictGames() {
         switchFootballTab('predict');
     } catch (err) {
         showError('PREDICTION FAILED');
-        console.error(err);
+        console.error('[PREDICT] Caught error:', err);
     } finally {
         if (btn) { btn.textContent = '[ PREDICT GAMES ]'; btn.disabled = false; }
     }
@@ -1791,6 +1837,20 @@ async function loadGames(seasonId, round) {
 function clearStandings() {
     const tbody = document.getElementById('footballTableBody');
     if (tbody) tbody.innerHTML = '';
+}
+
+function clearSimulationPage() {
+    const simContainer = document.getElementById('simulationContainer');
+    if (simContainer) simContainer.innerHTML = '<div class="football-placeholder">SELECT AN APPROACH TO BEGIN SIMULATION</div>';
+    const simResultsContainer = document.getElementById('simResultsContainer');
+    if (simResultsContainer) simResultsContainer.innerHTML = '<div class="football-placeholder">SELECT FILTERS AND CLICK LOAD</div>';
+    const simProgress = document.getElementById('simProgress');
+    if (simProgress) simProgress.style.display = 'none';
+    const batchLeagueList = document.getElementById('simBatchLeagueList');
+    if (batchLeagueList) batchLeagueList.innerHTML = '<div class="sim-batch-placeholder">NO COUNTRY SELECTED</div>';
+    const batchSeasonList = document.getElementById('simBatchSeasonList');
+    if (batchSeasonList) batchSeasonList.innerHTML = '<div class="sim-batch-placeholder">SELECT LEAGUES FIRST</div>';
+    batchLeaguesData = [];
 }
 
 async function loadStandings(seasonId) {
