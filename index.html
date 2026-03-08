@@ -125,10 +125,6 @@
                     INITIALIZE
                 </button>
 
-                <div class="register-prompt">
-                    <span>Don't have an account?</span>
-                    <a href="#" class="link-text" id="createAccountLink">Create Account</a>
-                </div>
             </div>
 
             <!-- Toolbar (shown after login) -->
@@ -500,6 +496,26 @@
                                     <option value="20">20</option>
                                     <option value="0">ALL</option>
                                 </select>
+                            </div>
+                        </div>
+                        <div class="settings-group">
+                            <div class="settings-group-title">FILE EXPORT</div>
+                            <div class="settings-row">
+                                <div class="settings-info">
+                                    <span class="settings-label">DEFAULT FILENAME</span>
+                                    <span class="settings-desc">Pattern for saved matches file. Use {datetime} for timestamp.</span>
+                                </div>
+                                <input type="text" id="exportFileName" class="settings-input" value="Winner16-{datetime}" style="width:220px;">
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-info">
+                                    <span class="settings-label">DEFAULT FOLDER</span>
+                                    <span class="settings-desc">Starting folder shown in the Save / Open dialog</span>
+                                </div>
+                                <div style="display:flex;gap:6px;align-items:center;">
+                                    <input type="text" id="exportFolderPath" class="settings-input" readonly placeholder="Downloads (default)" style="width:160px;cursor:default;">
+                                    <button class="matches-toolbar-btn" id="exportFolderBrowseBtn">[ BROWSE ]</button>
+                                </div>
                             </div>
                         </div>
                         <div class="settings-group">
