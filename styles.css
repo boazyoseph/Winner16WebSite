@@ -1611,6 +1611,14 @@ body {
     width: 160px;
     outline: none;
     transition: border-color 0.2s ease;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+}
+
+.matches-id-input option {
+    background: var(--color-bg);
+    color: var(--color-primary);
 }
 
 .matches-id-input::placeholder {

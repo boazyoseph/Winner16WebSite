@@ -2,7 +2,7 @@ const welcomeMessage = "> SECURE TERMINAL v3.14.159 // Enter credentials to proc
 
 // ── Server endpoint configuration ─────────────────────────────────────────────
 const LOCAL_API_BASE  = 'http://localhost:12802';
-const ACCESS_API_BASE = 'https://football.yosephhome.com';
+const ACCESS_API_BASE = 'https://football-api.yosephhome.com';
 
 // Reset to remote server on every page load; user can switch to local via Settings
 localStorage.setItem('useLocalServer', 'false');
@@ -590,14 +590,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const winner16IdInput = document.getElementById('winner16IdInput');
-    if (winner16IdInput) {
-        const saved = localStorage.getItem('winner16Id');
-        if (saved) winner16IdInput.value = saved;
-        winner16IdInput.addEventListener('input', e => {
-            localStorage.setItem('winner16Id', e.target.value.trim());
-        });
-    }
+    loadWinner16Ids();
 
     const exportFileName = document.getElementById('exportFileName');
     if (exportFileName) {
@@ -1781,6 +1774,31 @@ async function getExportStartIn() {
     return 'downloads';
 }
 
+
+async function loadWinner16Ids() {
+    const select = document.getElementById('winner16IdInput');
+    if (!select) return;
+    try {
+        const res = await fetch(`${getApiBase()}/api/prediction/games/winner16-ids`, {
+            headers: { 'accept': 'application/json' },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const ids = await res.json();
+        const current = select.value;
+        select.innerHTML = '<option value="">-- WINNER16 ID --</option>';
+        (Array.isArray(ids) ? ids : []).forEach(id => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = id;
+            select.appendChild(opt);
+        });
+        if (current && [...select.options].some(o => o.value === current)) {
+            select.value = current;
+        }
+    } catch (err) {
+        console.warn('[loadWinner16Ids] failed:', err);
+    }
+}
 
 async function saveMatchesToDb() {
     if (!selectedGames.length) {

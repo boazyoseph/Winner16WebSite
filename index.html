@@ -281,7 +281,9 @@
                     <!-- Matches panel -->
                     <div class="football-rounds-panel" id="footballMatchesPanel" style="display:none">
                         <div class="matches-toolbar">
-                            <input type="text" id="winner16IdInput" class="matches-id-input" placeholder="WINNER16 ID" maxlength="64" spellcheck="false">
+                            <select id="winner16IdInput" class="matches-id-input">
+                                <option value="">-- WINNER16 ID --</option>
+                            </select>
                             <button class="matches-toolbar-btn matches-toolbar-btn--db" id="saveMatchesDbBtn">[ SAVE GAMES ]</button>
                             <button class="matches-toolbar-btn matches-toolbar-btn--db" id="loadMatchesDbBtn">[ LOAD GAMES ]</button>
                             <button class="matches-toolbar-btn matches-toolbar-btn--similar" id="findSimilarBtn" disabled>[ FIND SIMILAR ]</button>
