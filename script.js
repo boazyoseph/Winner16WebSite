@@ -2,7 +2,7 @@ const welcomeMessage = "> SECURE TERMINAL v3.14.159 // Enter credentials to proc
 
 // ── Server endpoint configuration ─────────────────────────────────────────────
 const LOCAL_API_BASE  = 'http://localhost:12802';
-const ACCESS_API_BASE = 'http://localhost:12410';
+const ACCESS_API_BASE = 'https://football.yosephhome.com';
 
 // Reset to remote server on every page load; user can switch to local via Settings
 localStorage.setItem('useLocalServer', 'false');
