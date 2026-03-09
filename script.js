@@ -200,6 +200,7 @@ function handleLogin() {
             loginForm.style.display = 'none';
             document.getElementById('toolbar').style.display = 'flex';
             document.querySelector('.container').classList.add('expanded');
+            showFootballPanel();
             document.body.style.alignItems = 'stretch';
             document.body.style.justifyContent = 'stretch';
             document.body.style.height = '100vh';
@@ -343,30 +344,15 @@ function activateMatrixMode() {
 // Toolbar Button Handlers
 document.addEventListener('DOMContentLoaded', () => {
     const homeBtn = document.getElementById('homeBtn');
-    const dashboardBtn = document.getElementById('dashboardBtn');
     const settingsBtn = document.getElementById('settingsBtn');
     const helpBtn = document.getElementById('helpBtn');
-    const gamesBtn = document.getElementById('gamesBtn');
-    const footballBtn = document.getElementById('footballBtn');
 
     if (homeBtn) {
-        homeBtn.addEventListener('click', () => { hidePanels(); });
-    }
-
-    if (footballBtn) {
-        footballBtn.addEventListener('click', () => { showFootballPanel(); });
-    }
-
-    if (dashboardBtn) {
-        dashboardBtn.addEventListener('click', () => { hidePanels(); });
+        homeBtn.addEventListener('click', () => { showFootballPanel(); });
     }
 
     if (settingsBtn) {
         settingsBtn.addEventListener('click', () => { showSettingsPanel(); });
-    }
-
-    if (gamesBtn) {
-        gamesBtn.addEventListener('click', () => { showGamesPanel(); });
     }
 
     if (helpBtn) {
@@ -604,6 +590,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const winner16IdInput = document.getElementById('winner16IdInput');
+    if (winner16IdInput) {
+        const saved = localStorage.getItem('winner16Id');
+        if (saved) winner16IdInput.value = saved;
+        winner16IdInput.addEventListener('input', e => {
+            localStorage.setItem('winner16Id', e.target.value.trim());
+        });
+    }
+
     const exportFileName = document.getElementById('exportFileName');
     if (exportFileName) {
         exportFileName.value = localStorage.getItem('exportFileName') ?? 'Winner16-{datetime}';
@@ -823,31 +818,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     })();
 
-    document.getElementById('saveMatchesBtn')?.addEventListener('click', saveMatchesToFile);
     document.getElementById('saveMatchesDbBtn')?.addEventListener('click', saveMatchesToDb);
     document.getElementById('loadMatchesDbBtn')?.addEventListener('click', loadMatchesFromDb);
-    document.getElementById('loadMatchesBtn')?.addEventListener('click', async () => {
-        if (window.showOpenFilePicker) {
-            try {
-                const startIn = await getExportStartIn();
-                const [handle] = await window.showOpenFilePicker({
-                    startIn,
-                    types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }],
-                    multiple: false,
-                });
-                const file = await handle.getFile();
-                loadMatchesFromFile(file);
-            } catch (err) {
-                if (err.name !== 'AbortError') showError('LOAD FAILED');
-            }
-        } else {
-            document.getElementById('loadMatchesInput').click();
-        }
-    });
-    document.getElementById('loadMatchesInput')?.addEventListener('change', e => {
-        if (e.target.files[0]) loadMatchesFromFile(e.target.files[0]);
-        e.target.value = '';
-    });
 
     // Round navigation
     document.getElementById('roundPrevBtn')?.addEventListener('click', () => {
@@ -1560,6 +1532,7 @@ function renderMatchesPanel() {
     table.innerHTML = `
         <thead>
             <tr>
+                <th>#</th>
                 <th colspan="2">HOME</th>
                 <th colspan="2">AWAY</th>
                 <th>RND</th>
@@ -1582,6 +1555,7 @@ function renderMatchesPanel() {
         }
 
         tr.innerHTML = `
+            <td class="game-id-cell">${game.gameId ?? ''}</td>
             <td><img class="game-team-logo" src="${game.homeTeamLogo}" alt=""></td>
             <td>${game.homeTeamName.toUpperCase()}</td>
             <td>${game.awayTeamName.toUpperCase()}</td>
@@ -1690,73 +1664,6 @@ async function getExportStartIn() {
     return 'downloads';
 }
 
-// ── Matches file save / load ──────────────────────────────────────────────────
-function buildExportFilename() {
-    const pattern = localStorage.getItem('exportFileName') ?? 'Winner16-{datetime}';
-    const now = new Date();
-    const pad = n => String(n).padStart(2, '0');
-    const datetime =
-        now.getFullYear() +
-        pad(now.getMonth() + 1) +
-        pad(now.getDate()) + '-' +
-        pad(now.getHours()) +
-        pad(now.getMinutes()) +
-        pad(now.getSeconds());
-    return pattern.replace('{datetime}', datetime) + '.json';
-}
-
-async function saveMatchesToFile() {
-    if (!selectedGames.length) {
-        showError('NO GAMES TO SAVE');
-        return;
-    }
-    const json = JSON.stringify(selectedGames, null, 2);
-    const suggestedName = buildExportFilename();
-    if (window.showSaveFilePicker) {
-        try {
-            const startIn = await getExportStartIn();
-            const handle = await window.showSaveFilePicker({
-                suggestedName,
-                startIn,
-                types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }],
-            });
-            const writable = await handle.createWritable();
-            await writable.write(json);
-            await writable.close();
-            showSuccess('MATCHES SAVED');
-        } catch (err) {
-            if (err.name !== 'AbortError') showError('SAVE FAILED');
-        }
-    } else {
-        // Fallback for browsers without File System Access API
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = suggestedName;
-        a.click();
-        URL.revokeObjectURL(url);
-        showSuccess('MATCHES SAVED');
-    }
-}
-
-function loadMatchesFromFile(file) {
-    const reader = new FileReader();
-    reader.onload = e => {
-        try {
-            const data = JSON.parse(e.target.result);
-            if (!Array.isArray(data)) throw new Error('Invalid format');
-            selectedGames = data;
-            matchesSelectedGame = null;
-            renderMatchesPanel();
-            updateMatchesBadge();
-            showSuccess(`LOADED ${data.length} MATCH${data.length !== 1 ? 'ES' : ''}`);
-        } catch {
-            showError('INVALID FILE FORMAT');
-        }
-    };
-    reader.readAsText(file);
-}
 
 async function saveMatchesToDb() {
     if (!selectedGames.length) {
@@ -1772,7 +1679,14 @@ async function saveMatchesToDb() {
         const res = await fetch(`${getApiBase()}/api/Prediction/games`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'accept': '*/*' },
-            body: JSON.stringify({ winner16Id, games: selectedGames.map((g, i) => ({ ...g, gameId: i + 1 })) }),
+            body: JSON.stringify(selectedGames.map((g, i) => ({
+                seasonId:   g.seasonId,
+                TeamHomeId: g.teamHomeId,
+                TeamOutId:  g.teamOutId,
+                round:      g.round,
+                winner16Id: Number(winner16Id),
+                gameId:     i + 1,
+            }))),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         showSuccess('MATCHES SAVED TO DB');
@@ -1796,18 +1710,44 @@ async function loadMatchesFromDb() {
         console.log('[loadMatchesFromDb] raw response:', data);
         const games = Array.isArray(data) ? data : (data.games ?? data.matches ?? data.data ?? []);
         if (!Array.isArray(games)) throw new Error('Invalid response');
-        selectedGames = games.map(g => ({
-            seasonId:          g.seasonId          ?? g.SeasonId,
-            teamHomeId:        g.teamHomeId        ?? g.TeamHomeId,
-            teamOutId:         g.teamOutId         ?? g.TeamOutId,
-            homeTeamName:      g.homeTeamName      ?? g.HomeTeamName      ?? '',
-            awayTeamName:      g.awayTeamName      ?? g.AwayTeamName      ?? '',
-            homeTeamLogo:      g.homeTeamLogo      ?? g.HomeTeamLogo      ?? '',
-            awayTeamLogo:      g.awayTeamLogo      ?? g.AwayTeamLogo      ?? '',
-            homeFullTimeScore: g.homeFullTimeScore ?? g.HomeFullTimeScore,
-            outFullTimeScore:  g.outFullTimeScore  ?? g.OutFullTimeScore,
-            round:             g.round             ?? g.Round,
+
+        // Group by seasonId+round to batch-fetch team info
+        const groupKeys = [...new Set(games.map(g => `${g.seasonId ?? g.SeasonId}_${g.round ?? g.Round}`))];
+        const footballGamesCache = {};
+        await Promise.all(groupKeys.map(async key => {
+            const [seasonId, round] = key.split('_');
+            try {
+                const r = await fetch(`${getApiBase()}/api/Football/seasons/${seasonId}/rounds/${round}/games`, {
+                    headers: { 'accept': '*/*' }
+                });
+                if (r.ok) footballGamesCache[key] = await r.json();
+            } catch { /* leave cache empty for this key */ }
         }));
+
+        selectedGames = games.map(g => {
+            const seasonId  = g.seasonId  ?? g.SeasonId;
+            const round     = g.round     ?? g.Round;
+            const homeId    = g.teamHomeId ?? g.TeamHomeId;
+            const outId     = g.teamOutId  ?? g.TeamOutId;
+            const key       = `${seasonId}_${round}`;
+            const match     = (footballGamesCache[key] ?? []).find(
+                f => f.teamIdHome === homeId && f.teamIdOut === outId
+            );
+            return {
+                gameId:            g.gameId   ?? g.GameId,
+                seasonId,
+                teamHomeId:        homeId,
+                teamOutId:         outId,
+                homeTeamName:      match?.homeTeamName  ?? g.homeTeamName  ?? g.HomeTeamName  ?? '',
+                awayTeamName:      match?.awayTeamName  ?? g.awayTeamName  ?? g.AwayTeamName  ?? '',
+                homeTeamLogo:      match?.homeTeamLogo  ?? g.homeTeamLogo  ?? g.HomeTeamLogo  ?? '',
+                awayTeamLogo:      match?.awayTeamLogo  ?? g.awayTeamLogo  ?? g.AwayTeamLogo  ?? '',
+                homeFullTimeScore: match?.homeFullTimeScore ?? g.homeFullTimeScore ?? g.HomeFullTimeScore,
+                outFullTimeScore:  match?.outFullTimeScore  ?? g.outFullTimeScore  ?? g.OutFullTimeScore,
+                round,
+            };
+        });
+        selectedGames.sort((a, b) => (a.gameId ?? 0) - (b.gameId ?? 0));
         matchesSelectedGame = null;
         renderMatchesPanel();
         updateMatchesBadge();
