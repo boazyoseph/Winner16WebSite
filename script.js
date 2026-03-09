@@ -644,16 +644,51 @@ document.addEventListener('DOMContentLoaded', () => {
         clearSimulationPage();
         hideRoundsTabBtn();
         currentSeasonId = null;
-        batchLastCountryId = null; // reset so batch reloads on next sim tab open
+        batchLastCountryId = null;
+        updateCountryFavBtn(e.target.value);
         await populateLeagueSelect(e.target.value);
         renderFootballContent();
         loadBatchData();
     });
+
+    // Favourites — country
+    document.getElementById('countryFavBtn')?.addEventListener('click', () => {
+        const sel = document.getElementById('countrySelect');
+        if (!sel?.value) return;
+        const id = String(sel.value);
+        if (favCountries.has(id)) favCountries.delete(id); else favCountries.add(id);
+        saveFavCountries();
+        renderCountryOptions(sel);
+    });
+    document.getElementById('countryFavFilterBtn')?.addEventListener('click', e => {
+        favCountriesOnly = !favCountriesOnly;
+        e.currentTarget.classList.toggle('active', favCountriesOnly);
+        const sel = document.getElementById('countrySelect');
+        if (sel) renderCountryOptions(sel);
+    });
+
+    // Favourites — league
+    document.getElementById('leagueFavBtn')?.addEventListener('click', () => {
+        const sel = document.getElementById('leagueSelect');
+        if (!sel?.value) return;
+        const id = String(sel.value);
+        if (favLeagues.has(id)) favLeagues.delete(id); else favLeagues.add(id);
+        saveFavLeagues();
+        renderLeagueOptions(sel);
+    });
+    document.getElementById('leagueFavFilterBtn')?.addEventListener('click', e => {
+        favLeaguesOnly = !favLeaguesOnly;
+        e.currentTarget.classList.toggle('active', favLeaguesOnly);
+        const sel = document.getElementById('leagueSelect');
+        if (sel) renderLeagueOptions(sel);
+    });
+
     document.getElementById('leagueSelect')?.addEventListener('change', async e => {
         clearStandings();
         clearSimulationPage();
         hideRoundsTabBtn();
         currentSeasonId = null;
+        updateLeagueFavBtn(e.target.value);
         await populateSeasonSelect(e.target.value);
         renderFootballContent();
     });
@@ -1257,6 +1292,33 @@ function renderPredictFullPanel(approaches, allPredictions) {
 let footballCountries = [];
 let countriesLoaded = false;
 
+// ── Favourites ────────────────────────────────────────────────────────────────
+const favCountries  = new Set(JSON.parse(localStorage.getItem('favCountries')  ?? '[]'));
+const favLeagues    = new Set(JSON.parse(localStorage.getItem('favLeagues')    ?? '[]'));
+let favCountriesOnly = false;
+let favLeaguesOnly   = false;
+
+function saveFavCountries() { localStorage.setItem('favCountries', JSON.stringify([...favCountries])); }
+function saveFavLeagues()   { localStorage.setItem('favLeagues',   JSON.stringify([...favLeagues])); }
+
+function updateCountryFavBtn(id) {
+    const btn = document.getElementById('countryFavBtn');
+    if (!btn) return;
+    const isFav = id && favCountries.has(String(id));
+    btn.disabled = !id;
+    btn.textContent = isFav ? '★' : '☆';
+    btn.classList.toggle('is-fav', !!isFav);
+}
+
+function updateLeagueFavBtn(id) {
+    const btn = document.getElementById('leagueFavBtn');
+    if (!btn) return;
+    const isFav = id && favLeagues.has(String(id));
+    btn.disabled = !id;
+    btn.textContent = isFav ? '★' : '☆';
+    btn.classList.toggle('is-fav', !!isFav);
+}
+
 async function loadFootballCountries() {
     if (countriesLoaded) return;
 
@@ -1273,13 +1335,7 @@ async function loadFootballCountries() {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         footballCountries = await res.json();
 
-        select.innerHTML = '<option value="">-- Select Country --</option>';
-        footballCountries.forEach(country => {
-            const opt = document.createElement('option');
-            opt.value = country.id;
-            opt.textContent = country.name.toUpperCase();
-            select.appendChild(opt);
-        });
+        renderCountryOptions(select);
         countriesLoaded = true;
     } catch (err) {
         console.error('Failed to load countries:', err);
@@ -1288,6 +1344,86 @@ async function loadFootballCountries() {
     } finally {
         select.disabled = false;
     }
+}
+
+function renderCountryOptions(select) {
+    const prev = select.value;
+    select.innerHTML = '<option value="">-- Select Country --</option>';
+    const favList  = footballCountries.filter(c => favCountries.has(String(c.id)));
+    const restList = footballCountries.filter(c => !favCountries.has(String(c.id)));
+
+    if (favList.length) {
+        const grp = document.createElement('optgroup');
+        grp.label = '── FAVORITES ──';
+        favList.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = '★ ' + c.name.toUpperCase();
+            grp.appendChild(opt);
+        });
+        select.appendChild(grp);
+    }
+
+    if (!favCountriesOnly) {
+        restList.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name.toUpperCase();
+            select.appendChild(opt);
+        });
+    }
+
+    if (prev) select.value = prev;
+    updateCountryFavBtn(select.value);
+}
+
+function renderLeagueOptions(leagueSelect) {
+    const prev = leagueSelect.value;
+    leagueSelect.innerHTML = '<option value="">-- Select League --</option>';
+
+    const groups = { League: [], Cup: [] };
+    footballLeagues.forEach(l => {
+        const bucket = groups[l.type] ?? (groups['Other'] = groups['Other'] ?? []);
+        bucket.push(l);
+    });
+
+    ['League', 'Cup'].forEach(type => {
+        if (!groups[type]?.length) return;
+        const visibleItems = groups[type].filter(l =>
+            !favLeaguesOnly || favLeagues.has(String(l.id))
+        );
+        if (!visibleItems.length) return;
+
+        const favItems  = visibleItems.filter(l => favLeagues.has(String(l.id)));
+        const restItems = visibleItems.filter(l => !favLeagues.has(String(l.id)));
+
+        if (favItems.length) {
+            const grp = document.createElement('optgroup');
+            grp.label = (type === 'Cup' ? '── CUPS' : '── LEAGUES') + ' FAVORITES ──';
+            favItems.forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l.id;
+                opt.textContent = '★ ' + l.name.toUpperCase();
+                grp.appendChild(opt);
+            });
+            leagueSelect.appendChild(grp);
+        }
+
+        if (restItems.length) {
+            const grp = document.createElement('optgroup');
+            grp.label = type === 'Cup' ? '── CUPS ──' : '── LEAGUES ──';
+            restItems.forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l.id;
+                opt.textContent = l.name.toUpperCase();
+                grp.appendChild(opt);
+            });
+            leagueSelect.appendChild(grp);
+        }
+    });
+
+    if (prev) leagueSelect.value = prev;
+    updateLeagueFavBtn(leagueSelect.value);
 }
 
 let footballLeagues = [];
@@ -1316,28 +1452,9 @@ async function populateLeagueSelect(countryId) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         footballLeagues = await res.json();
 
-        leagueSelect.innerHTML = '<option value="">-- Select League --</option>';
-
-        // Group by type: Leagues first, then Cups
-        const groups = { League: [], Cup: [] };
-        footballLeagues.forEach(l => {
-            (groups[l.type] || (groups['Other'] = groups['Other'] || [])).push(l);
-        });
-
-        ['League', 'Cup'].forEach(type => {
-            if (!groups[type]?.length) return;
-            const group = document.createElement('optgroup');
-            group.label = type === 'Cup' ? '── CUPS ──' : '── LEAGUES ──';
-            groups[type].forEach(league => {
-                const opt = document.createElement('option');
-                opt.value = league.id;
-                opt.textContent = league.name.toUpperCase();
-                group.appendChild(opt);
-            });
-            leagueSelect.appendChild(group);
-        });
-
+        renderLeagueOptions(leagueSelect);
         leagueSelect.disabled = false;
+        updateLeagueFavBtn(leagueSelect.value);
     } catch (err) {
         console.error('Failed to load leagues:', err);
         leagueSelect.innerHTML = '<option value="">-- ERROR LOADING --</option>';

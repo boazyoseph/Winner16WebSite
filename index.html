@@ -179,13 +179,21 @@
                 <div class="football-sidebar">
                     <div class="football-sidebar-header">// FOOTBALL</div>
                     <div class="football-dropdown">
-                        <label class="football-dropdown-label" for="countrySelect">COUNTRIES</label>
+                        <div class="football-dropdown-header">
+                            <label class="football-dropdown-label" for="countrySelect">COUNTRIES</label>
+                            <button class="fav-star-btn" id="countryFavBtn" title="Toggle favorite" disabled>☆</button>
+                            <button class="fav-filter-btn" id="countryFavFilterBtn" title="Show favorites only">★ ONLY</button>
+                        </div>
                         <select class="football-select" id="countrySelect">
                             <option value="">-- Select Country --</option>
                         </select>
                     </div>
                     <div class="football-dropdown">
-                        <label class="football-dropdown-label" for="leagueSelect">LEAGUES</label>
+                        <div class="football-dropdown-header">
+                            <label class="football-dropdown-label" for="leagueSelect">LEAGUES</label>
+                            <button class="fav-star-btn" id="leagueFavBtn" title="Toggle favorite" disabled>☆</button>
+                            <button class="fav-filter-btn" id="leagueFavFilterBtn" title="Show favorites only">★ ONLY</button>
+                        </div>
                         <select class="football-select" id="leagueSelect" disabled>
                             <option value="">-- Select League --</option>
                         </select>
