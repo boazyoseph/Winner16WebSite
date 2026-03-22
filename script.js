@@ -754,6 +754,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabBtn) tabBtn.style.display = 'none';
         switchFootballTab('matches');
     });
+    document.getElementById('tabBtnInspection')?.addEventListener('click', e => {
+        if (e.target.id === 'closeInspectionTabBtn' || e.target.closest('#closeInspectionTabBtn')) return;
+        switchFootballTab('inspection');
+    });
+    document.getElementById('closeInspectionTabBtn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        const tabBtn = document.getElementById('tabBtnInspection');
+        if (tabBtn) tabBtn.style.display = 'none';
+        switchFootballTab('rounds');
+    });
 
     document.getElementById('predictGamesBtn')?.addEventListener('click', predictGames);
     document.getElementById('tabBtnPredict')?.addEventListener('click', e => {
@@ -1593,6 +1603,7 @@ function switchFootballTab(tabName) {
         predict:      document.getElementById('footballPredictPanel'),
         predictFull:  document.getElementById('footballPredictFullPanel'),
         similar:      document.getElementById('footballSimilarPanel'),
+        inspection:   document.getElementById('footballInspectionPanel'),
         simulation:   document.getElementById('footballSimulationPanel'),
         simResults:   document.getElementById('footballSimResultsPanel'),
     };
@@ -1603,6 +1614,7 @@ function switchFootballTab(tabName) {
         predict:      document.getElementById('tabBtnPredict'),
         predictFull:  document.getElementById('tabBtnPredictFull'),
         similar:      document.getElementById('tabBtnSimilar'),
+        inspection:   document.getElementById('tabBtnInspection'),
         simulation:   document.getElementById('tabBtnSimulation'),
         simResults:   document.getElementById('tabBtnSimResults'),
     };
@@ -1615,6 +1627,153 @@ function switchFootballTab(tabName) {
 
     if (tabName === 'matches') renderMatchesPanel();
 }
+
+// ── Inspection ────────────────────────────────────────────────────────────────
+let inspectedGame = null;
+
+async function openInspection(game, seasonId) {
+    inspectedGame = game;
+
+    const tabBtn = document.getElementById('tabBtnInspection');
+    if (tabBtn) tabBtn.style.display = '';
+    switchFootballTab('inspection');
+
+    const container = document.getElementById('inspectionContainer');
+    if (!container) return;
+    container.innerHTML = '<div class="football-placeholder">LOADING INSPECTION...</div>';
+
+    try {
+        const approaches = await loadPredictionApproaches();
+
+        const status = (game.status || '').toUpperCase();
+        const finishedStatuses  = ['FT', 'AET', 'PEN', 'AWD', 'WO'];
+        const inProgressStatuses = ['1H', 'HT', '2H', 'ET', 'BT', 'LIVE'];
+        const finished  = finishedStatuses.some(s => status === s || status.includes(s));
+        const hasScore  = finished || inProgressStatuses.some(s => status === s || status.includes(s));
+        const hs = game.homeFullTimeScore, as_ = game.outFullTimeScore;
+        const actualResult = finished ? (hs > as_ ? '1' : hs < as_ ? '2' : 'X') : null;
+
+        const predictions = await Promise.all(
+            approaches.map(approach =>
+                fetch(`${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamIdHome}&awayTeamId=${game.teamIdOut}&seasonId=${seasonId}&round=${game.round}&approach=${approach.index}`, {
+                    headers: { 'accept': '*/*' }
+                })
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => null)
+            )
+        );
+
+        renderInspectionPanel(game, actualResult, hasScore, approaches, predictions);
+    } catch (err) {
+        if (container) container.innerHTML = `<div class="football-placeholder">ERROR: ${err.message}</div>`;
+    }
+}
+
+function renderInspectionPanel(game, actualResult, hasScore, approaches, predictions) {
+    const container = document.getElementById('inspectionContainer');
+    if (!container) return;
+
+    const finished = actualResult !== null;
+
+    const ranked = approaches.map((approach, i) => {
+        const pred = predictions[i];
+        if (!pred) return { approach, pred: null, predicted: null, correct: false, confidence: 0 };
+        const h = pred.homeWinProbability ?? 0, d = pred.drawProbability ?? 0, a = pred.awayWinProbability ?? 0;
+        const predicted = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
+        const correct = finished ? predicted === actualResult : false;
+        const confidence = finished
+            ? (actualResult === '1' ? h : actualResult === 'X' ? d : a)
+            : Math.max(h, d, a);
+        return { approach, pred, predicted, correct, confidence };
+    });
+
+    if (finished) {
+        ranked.sort((a, b) => {
+            if (a.correct !== b.correct) return (b.correct ? 1 : 0) - (a.correct ? 1 : 0);
+            return (b.confidence || 0) - (a.confidence || 0);
+        });
+    }
+
+    const ftScore = hasScore ? `${game.homeFullTimeScore}-${game.outFullTimeScore}` : '? - ?';
+    const htScore = `${game.homeHalfTimeScore ?? '?'}-${game.outHalfTimeScore ?? '?'}`;
+
+    // Header meta section
+    let metaHtml = '';
+    if (finished) {
+        const correctCount = ranked.filter(r => r.correct).length;
+        const bestApproach = ranked.find(r => r.correct);
+        const resultCls = actualResult === '1' ? 'predict-cell--home' : actualResult === 'X' ? 'predict-cell--draw' : 'predict-cell--away';
+        metaHtml = `
+            <span class="inspection-result-badge predict-cell ${resultCls}">
+                <span class="predict-outcome">RESULT: ${actualResult}</span>
+            </span>
+            <span class="inspection-accuracy">${correctCount}/${approaches.length} APPROACHES CORRECT</span>
+            ${bestApproach
+                ? `<span class="inspection-best">BEST MATCH: ${bestApproach.approach.name.toUpperCase()}</span>`
+                : '<span class="inspection-best inspection-best--none">NO APPROACH MATCHED</span>'}`;
+    } else {
+        metaHtml = `<span class="inspection-accuracy inspection-not-finished">GAME NOT FINISHED — PREDICTIONS ONLY</span>`;
+    }
+
+    let html = `
+    <div class="inspection-header">
+        <div class="inspection-game">
+            <img class="game-team-logo inspection-logo" src="${game.homeTeamLogo}" alt="">
+            <span class="inspection-team-name">${game.homeTeamName.toUpperCase()}</span>
+            <div class="inspection-score-block">
+                <span class="inspection-score-ft">${ftScore}</span>
+                ${(game.homeHalfTimeScore != null) ? `<span class="inspection-score-ht">(HT: ${htScore})</span>` : ''}
+            </div>
+            <span class="inspection-team-name">${game.awayTeamName.toUpperCase()}</span>
+            <img class="game-team-logo inspection-logo" src="${game.awayTeamLogo}" alt="">
+        </div>
+        <div class="inspection-meta">${metaHtml}</div>
+    </div>
+    <table class="predict-table inspection-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th class="predict-approach-header">APPROACH</th>
+                <th>PREDICTION</th>
+                <th class="inspection-prob-header">HOME 1</th>
+                <th class="inspection-prob-header">DRAW X</th>
+                <th class="inspection-prob-header">AWAY 2</th>
+                ${finished ? '<th class="inspection-match-header">✓</th>' : ''}
+            </tr>
+        </thead>
+        <tbody>`;
+
+    ranked.forEach((entry, i) => {
+        const { approach, pred, predicted, correct } = entry;
+        if (!pred) {
+            html += `
+            <tr class="predict-row inspection-row">
+                <td class="predict-row-num">${i + 1}</td>
+                <td class="predict-approach-name" title="${approach.description}">${approach.name.toUpperCase()}</td>
+                <td colspan="${finished ? 4 : 3}" class="predict-cell predict-cell--error">N/A</td>
+                ${finished ? '<td class="inspection-match">—</td>' : ''}
+            </tr>`;
+            return;
+        }
+        const h = pred.homeWinProbability ?? 0, d = pred.drawProbability ?? 0, a = pred.awayWinProbability ?? 0;
+        const predCls = predicted === '1' ? 'predict-cell--home' : predicted === 'X' ? 'predict-cell--draw' : 'predict-cell--away';
+        const rowCls = finished ? (correct ? 'inspection-row--correct' : 'inspection-row--wrong') : '';
+        html += `
+        <tr class="predict-row inspection-row ${rowCls}">
+            <td class="predict-row-num">${i + 1}</td>
+            <td class="predict-approach-name" title="${approach.description}">${approach.name.toUpperCase()}</td>
+            <td class="predict-cell ${predCls}"><span class="predict-outcome">${predicted}</span></td>
+            <td class="inspection-prob ${finished && actualResult === '1' ? 'inspection-prob--actual' : ''}">${(h * 100).toFixed(1)}%</td>
+            <td class="inspection-prob ${finished && actualResult === 'X' ? 'inspection-prob--actual' : ''}">${(d * 100).toFixed(1)}%</td>
+            <td class="inspection-prob ${finished && actualResult === '2' ? 'inspection-prob--actual' : ''}">${(a * 100).toFixed(1)}%</td>
+            ${finished ? `<td class="inspection-match ${correct ? 'inspection-match--correct' : 'inspection-match--wrong'}">${correct ? '✓' : '✗'}</td>` : ''}
+        </tr>`;
+    });
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function updateMatchesBadge() {
     const badge = document.getElementById('matchesBadge');
@@ -2085,6 +2244,9 @@ async function loadGames(seasonId, round) {
 
                 updateMatchesBadge();
                 console.log('selectedGames:', selectedGames);
+
+                // Open inspection for all games
+                openInspection(game, seasonId);
             });
 
             tbody.appendChild(tr);
