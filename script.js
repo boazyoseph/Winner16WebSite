@@ -1096,7 +1096,7 @@ function renderApproachesPanel(approaches) {
                     </div>
                     <div class="approaches-detail-section">
                         <span class="approaches-detail-label">EXAMPLE</span>
-                        <p class="approaches-detail-text approaches-detail-example">${a.example}</p>
+                        <p class="approaches-detail-example">${a.example}</p>
                     </div>
                 </div>
             </td>

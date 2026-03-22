@@ -2705,15 +2705,21 @@ body {
     text-align: center;
 }
 
-.approaches-name-header,
+.approaches-name-header {
+    text-align: left;
+    width: 1%;
+}
+
 .approaches-expand-header {
     text-align: left;
+    width: 100%;
 }
 
 .approaches-stat-header {
     text-align: center;
     font-size: 10px;
     white-space: nowrap;
+    width: 1%;
 }
 
 .approaches-name {
@@ -2721,13 +2727,18 @@ body {
     font-weight: 600;
     letter-spacing: 1px;
     font-size: 12px;
+    white-space: nowrap;
+    width: 1%;
+    padding-right: 24px;
 }
 
 .approaches-stat {
     text-align: center;
     font-size: 11px;
     color: var(--color-text-dim);
-    min-width: 56px;
+    white-space: nowrap;
+    width: 1%;
+    padding: 0 10px;
 }
 
 .approaches-stat--good {
@@ -2765,38 +2776,41 @@ body {
 
 .approaches-detail-panel {
     display: flex;
-    gap: 24px;
-    padding: 14px 20px 16px 48px;
-    background: rgba(0, 0, 0, 0.2);
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 24px 20px 24px;
+    background: rgba(0, 0, 0, 0.25);
+    border-left: 2px solid var(--color-border);
 }
 
 .approaches-detail-section {
-    flex: 1;
-    min-width: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .approaches-detail-label {
-    display: block;
     font-size: 9px;
     letter-spacing: 3px;
     color: var(--color-primary);
     text-shadow: var(--glow-primary);
-    margin-bottom: 6px;
 }
 
 .approaches-detail-text {
-    font-size: 11px;
+    font-size: 13px;
     color: var(--color-text-dim);
-    line-height: 1.6;
+    line-height: 1.7;
     margin: 0;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
 }
 
 .approaches-detail-example {
+    font-size: 13px;
     color: var(--color-accent);
-    opacity: 0.8;
-    font-style: italic;
+    opacity: 0.85;
+    border-left: 2px solid var(--color-accent);
+    padding-left: 12px;
+    line-height: 1.7;
 }
 
 /* ── Inspection panel ──────────────────────────────────────────────────────── */
