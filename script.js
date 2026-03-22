@@ -720,6 +720,10 @@ document.addEventListener('DOMContentLoaded', () => {
         switchFootballTab('matches');
     });
 
+    document.getElementById('tabBtnApproaches')?.addEventListener('click', () => {
+        switchFootballTab('approaches');
+        loadApproachesTab();
+    });
     document.getElementById('tabBtnSimulation')?.addEventListener('click', () => {
         switchFootballTab('simulation');
         loadSimulationApproaches();
@@ -1022,6 +1026,97 @@ function resetTtt() {
     tttGameActive = true;
     setTttStatus('YOUR TURN (X)', 'var(--color-primary)');
     renderTttBoard();
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Approaches tab ────────────────────────────────────────────────────────────
+async function loadApproachesTab() {
+    const container = document.getElementById('approachesContainer');
+    if (!container) return;
+    container.innerHTML = '<div class="football-placeholder">LOADING...</div>';
+    try {
+        const res = await fetch(`${getApiBase()}/api/Prediction/approaches`, { headers: { 'accept': '*/*' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const approaches = await res.json();
+        renderApproachesPanel(approaches);
+    } catch (err) {
+        container.innerHTML = `<div class="football-placeholder">ERROR: ${err.message}</div>`;
+    }
+}
+
+function renderApproachesPanel(approaches) {
+    const container = document.getElementById('approachesContainer');
+    if (!container) return;
+
+    const hasStats = approaches.some(a => a.accuracyRate != null);
+
+    let html = `<table class="predict-table approaches-table">
+        <thead>
+            <tr>
+                <th class="approaches-idx">#</th>
+                <th class="approaches-name-header">NAME</th>
+                ${hasStats ? `
+                <th class="approaches-stat-header">ACCURACY</th>
+                <th class="approaches-stat-header">CORRECT</th>
+                <th class="approaches-stat-header">TOTAL</th>
+                <th class="approaches-stat-header">AVG SCORE</th>` : ''}
+                <th class="approaches-expand-header"></th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    approaches.forEach((a, i) => {
+        const hasData = a.accuracyRate != null;
+        const accuracy = hasData ? `${(a.accuracyRate * 100).toFixed(1)}%` : '—';
+        const correct  = hasData ? a.correctPredictions : '—';
+        const total    = hasData ? a.totalPredictions : '—';
+        const avgScore = hasData ? a.averageSimulationScore?.toFixed(3) ?? '—' : '—';
+
+        const accuracyCls = hasData
+            ? (a.accuracyRate >= 0.5 ? 'approaches-stat--good' : a.accuracyRate >= 0.4 ? 'approaches-stat--mid' : 'approaches-stat--low')
+            : '';
+
+        html += `
+        <tr class="predict-row approaches-row approaches-main-row" data-idx="${i}">
+            <td class="predict-row-num">${a.index}</td>
+            <td class="approaches-name">${a.name.toUpperCase()}</td>
+            ${hasStats ? `
+            <td class="approaches-stat ${accuracyCls}">${accuracy}</td>
+            <td class="approaches-stat">${correct}</td>
+            <td class="approaches-stat">${total}</td>
+            <td class="approaches-stat">${avgScore}</td>` : ''}
+            <td class="approaches-expand-btn" title="SHOW DETAILS">&#9654;</td>
+        </tr>
+        <tr class="approaches-detail-row" id="approaches-detail-${i}" style="display:none">
+            <td colspan="${hasStats ? 7 : 3}">
+                <div class="approaches-detail-panel">
+                    <div class="approaches-detail-section">
+                        <span class="approaches-detail-label">DESCRIPTION</span>
+                        <p class="approaches-detail-text">${a.description}</p>
+                    </div>
+                    <div class="approaches-detail-section">
+                        <span class="approaches-detail-label">EXAMPLE</span>
+                        <p class="approaches-detail-text approaches-detail-example">${a.example}</p>
+                    </div>
+                </div>
+            </td>
+        </tr>`;
+    });
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+
+    // Toggle expand on click
+    container.querySelectorAll('.approaches-main-row').forEach(row => {
+        row.addEventListener('click', () => {
+            const idx = row.dataset.idx;
+            const detail = document.getElementById(`approaches-detail-${idx}`);
+            const btn = row.querySelector('.approaches-expand-btn');
+            const open = detail.style.display !== 'none';
+            detail.style.display = open ? 'none' : 'table-row';
+            btn.innerHTML = open ? '&#9654;' : '&#9660;';
+        });
+    });
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1603,6 +1698,7 @@ function switchFootballTab(tabName) {
         predict:      document.getElementById('footballPredictPanel'),
         predictFull:  document.getElementById('footballPredictFullPanel'),
         similar:      document.getElementById('footballSimilarPanel'),
+        approaches:   document.getElementById('footballApproachesPanel'),
         inspection:   document.getElementById('footballInspectionPanel'),
         simulation:   document.getElementById('footballSimulationPanel'),
         simResults:   document.getElementById('footballSimResultsPanel'),
@@ -1614,6 +1710,7 @@ function switchFootballTab(tabName) {
         predict:      document.getElementById('tabBtnPredict'),
         predictFull:  document.getElementById('tabBtnPredictFull'),
         similar:      document.getElementById('tabBtnSimilar'),
+        approaches:   document.getElementById('tabBtnApproaches'),
         inspection:   document.getElementById('tabBtnInspection'),
         simulation:   document.getElementById('tabBtnSimulation'),
         simResults:   document.getElementById('tabBtnSimResults'),

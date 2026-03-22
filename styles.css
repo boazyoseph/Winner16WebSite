@@ -2695,6 +2695,110 @@ body {
     text-align: center;
 }
 
+/* ── Approaches panel ─────────────────────────────────────────────────────── */
+.approaches-table {
+    width: 100%;
+}
+
+.approaches-idx {
+    width: 32px;
+    text-align: center;
+}
+
+.approaches-name-header,
+.approaches-expand-header {
+    text-align: left;
+}
+
+.approaches-stat-header {
+    text-align: center;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.approaches-name {
+    color: var(--color-text);
+    font-weight: 600;
+    letter-spacing: 1px;
+    font-size: 12px;
+}
+
+.approaches-stat {
+    text-align: center;
+    font-size: 11px;
+    color: var(--color-text-dim);
+    min-width: 56px;
+}
+
+.approaches-stat--good {
+    color: var(--color-accent);
+    text-shadow: var(--glow-accent);
+    font-weight: 700;
+}
+
+.approaches-stat--mid {
+    color: var(--color-warning, #ffaa00);
+    font-weight: 600;
+}
+
+.approaches-stat--low {
+    color: var(--color-secondary);
+}
+
+.approaches-expand-btn {
+    text-align: center;
+    color: var(--color-text-dim);
+    font-size: 10px;
+    cursor: pointer;
+    width: 24px;
+    padding: 0 6px;
+}
+
+.approaches-row:hover .approaches-expand-btn {
+    color: var(--color-primary);
+}
+
+.approaches-detail-row > td {
+    padding: 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.approaches-detail-panel {
+    display: flex;
+    gap: 24px;
+    padding: 14px 20px 16px 48px;
+    background: rgba(0, 0, 0, 0.2);
+    flex-wrap: wrap;
+}
+
+.approaches-detail-section {
+    flex: 1;
+    min-width: 220px;
+}
+
+.approaches-detail-label {
+    display: block;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--color-primary);
+    text-shadow: var(--glow-primary);
+    margin-bottom: 6px;
+}
+
+.approaches-detail-text {
+    font-size: 11px;
+    color: var(--color-text-dim);
+    line-height: 1.6;
+    margin: 0;
+    letter-spacing: 0.3px;
+}
+
+.approaches-detail-example {
+    color: var(--color-accent);
+    opacity: 0.8;
+    font-style: italic;
+}
+
 /* ── Inspection panel ──────────────────────────────────────────────────────── */
 .inspection-header {
     display: flex;
