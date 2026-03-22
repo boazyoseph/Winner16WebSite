@@ -1060,7 +1060,6 @@ function renderApproachesPanel(approaches) {
                 <th class="approaches-stat-header">CORRECT</th>
                 <th class="approaches-stat-header">TOTAL</th>
                 <th class="approaches-stat-header">AVG SCORE</th>` : ''}
-                <th class="approaches-expand-header"></th>
             </tr>
         </thead>
         <tbody>`;
@@ -1079,16 +1078,18 @@ function renderApproachesPanel(approaches) {
         html += `
         <tr class="predict-row approaches-row approaches-main-row" data-idx="${i}">
             <td class="predict-row-num">${a.index}</td>
-            <td class="approaches-name">${a.name.toUpperCase()}</td>
+            <td class="approaches-name">
+                <span class="approaches-expand-btn" id="approaches-arrow-${i}">&#9654;</span>
+                ${a.name.toUpperCase()}
+            </td>
             ${hasStats ? `
             <td class="approaches-stat ${accuracyCls}">${accuracy}</td>
             <td class="approaches-stat">${correct}</td>
             <td class="approaches-stat">${total}</td>
             <td class="approaches-stat">${avgScore}</td>` : ''}
-            <td class="approaches-expand-btn" title="SHOW DETAILS">&#9654;</td>
         </tr>
         <tr class="approaches-detail-row" id="approaches-detail-${i}" style="display:none">
-            <td colspan="${hasStats ? 7 : 3}">
+            <td colspan="${hasStats ? 6 : 2}">
                 <div class="approaches-detail-panel">
                     <div class="approaches-detail-section">
                         <span class="approaches-detail-label">DESCRIPTION</span>
