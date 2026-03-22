@@ -2706,7 +2706,7 @@ body {
 }
 
 .approaches-name-header {
-    text-align: left;
+    text-align: left !important;
 }
 
 .approaches-stat-header {
@@ -2755,6 +2755,7 @@ body {
     margin-right: 8px;
     vertical-align: middle;
     transition: color 0.15s;
+    cursor: pointer;
 }
 
 .approaches-row:hover .approaches-expand-btn {
