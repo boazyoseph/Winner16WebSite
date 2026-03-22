@@ -1489,6 +1489,21 @@ body {
     text-shadow: var(--glow-primary);
 }
 
+#tabBtnApproaches {
+    margin-left: auto;
+    color: #ffcc00;
+}
+
+#tabBtnApproaches:hover {
+    color: #ffe066;
+}
+
+#tabBtnApproaches.active {
+    color: #ffcc00;
+    border-bottom-color: #ffcc00;
+    text-shadow: 0 0 8px rgba(255, 204, 0, 0.7);
+}
+
 .football-tab-close {
     display: inline-block;
     margin-left: 8px;
