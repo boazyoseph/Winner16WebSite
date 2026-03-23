@@ -139,6 +139,20 @@
                         </svg>
                         <span>HOME</span>
                     </button>
+                    <button class="toolbar-btn" id="predictionsBtn">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/>
+                            <path d="M4.5 7L6.5 9L9.5 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>PREDICTIONS</span>
+                    </button>
+                    <button class="toolbar-btn" id="simulationsBtn">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 11L5 7L8 9L12 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                            <circle cx="12" cy="3" r="1.5" fill="currentColor"/>
+                        </svg>
+                        <span>SIMULATIONS</span>
+                    </button>
                 </div>
                 <div class="toolbar-right">
                     <button class="toolbar-btn toolbar-btn-accent" id="settingsBtn">
@@ -245,12 +259,6 @@
                             SIMILAR <span class="football-tab-close" id="closeSimilarTabBtn">×</span>
                         </button>
                         <!-- dynamic inspection tabs injected here -->
-                        <button class="football-tab-btn" id="tabBtnSimulation">
-                            SIMULATION
-                        </button>
-                        <button class="football-tab-btn" id="tabBtnSimResults">
-                            SIM RESULTS
-                        </button>
                         <button class="football-tab-btn" id="tabBtnApproaches">
                             APPROACHES
                         </button>
@@ -317,140 +325,44 @@
                     </div>
 
                     <!-- dynamic inspection panels injected here -->
+                </div>
+            </div>
 
-                    <!-- Sim Results panel -->
-                    <div class="football-rounds-panel" id="footballSimResultsPanel" style="display:none">
-                        <div class="simulation-toolbar">
-                            <div class="simulation-control">
-                                <label class="football-dropdown-label" for="simResultsApproachSelect">APPROACH</label>
-                                <select class="football-select" id="simResultsApproachSelect">
-                                    <option value="">-- All Approaches --</option>
-                                </select>
-                            </div>
-                            <button class="matches-toolbar-btn sim-run-btn" id="simResultsLoadBtn">[ LOAD RESULTS ]</button>
-                            <button class="matches-toolbar-btn sim-delete-btn" id="simResultsDeleteBtn">[ DELETE RESULTS ]</button>
+            <!-- Simulations Panel -->
+            <div class="football-panel" id="simulationsPanel" style="display: none;">
+                <div class="football-sidebar">
+                    <div class="football-sidebar-header">// SIMULATIONS</div>
+                    <div class="football-dropdown">
+                        <div class="football-dropdown-header">
+                            <label class="football-dropdown-label" for="simCountrySelect">COUNTRIES</label>
+                            <button class="fav-star-btn" id="simCountryFavBtn" title="Toggle favorite" disabled>☆</button>
+                            <button class="fav-filter-btn" id="simCountryFavFilterBtn" title="Show favorites only">★ ONLY</button>
                         </div>
-                        <div id="simResultsContainer">
-                            <div class="football-placeholder">SELECT FILTERS AND CLICK LOAD</div>
-                        </div>
+                        <select class="football-select" id="simCountrySelect">
+                            <option value="">-- Select Country --</option>
+                        </select>
                     </div>
-
-                    <!-- Simulation panel -->
-                    <div class="football-rounds-panel" id="footballSimulationPanel" style="display:none">
-                        <div class="simulation-toolbar">
-                            <div class="simulation-control">
-                                <label class="football-dropdown-label" for="simApproachSelect">APPROACH</label>
-                                <select class="football-select" id="simApproachSelect">
-                                    <option value="">-- Loading... --</option>
-                                </select>
-                            </div>
-                            <button class="matches-toolbar-btn sim-run-btn" id="simRunBtn">[ RUN SIMULATION ]</button>
-                            <button class="matches-toolbar-btn sim-save-btn" id="simSaveBtn" disabled>[ SAVE RESULTS ]</button>
-                            <button class="matches-toolbar-btn sim-run-all-btn" id="simRunAllBtn">[ RUN BATCH ]</button>
-                            <button class="matches-toolbar-btn sim-log-btn" id="simLogBtn">[ LOG ]</button>
+                    <div class="football-dropdown">
+                        <div class="football-dropdown-header">
+                            <label class="football-dropdown-label" for="simLeagueSelect">LEAGUES</label>
+                            <button class="fav-star-btn" id="simLeagueFavBtn" title="Toggle favorite" disabled>☆</button>
+                            <button class="fav-filter-btn" id="simLeagueFavFilterBtn" title="Show favorites only">★ ONLY</button>
                         </div>
-
-                        <!-- Running Batch Status Pane (top) -->
-                        <div class="sim-status-pane" id="simStatusPane">
-                            <!-- Multi-progress (always visible, empty on load) -->
-                            <div class="sim-all-progress" id="simAllProgress">
-                                <div class="sim-all-header">
-                                    <span class="sim-all-title" id="simAllTitle">BATCH STATUS</span>
-                                    <button class="sim-cancel-btn" id="simCancelBtn" style="display:none">[ CANCEL ]</button>
-                                </div>
-                                <div class="sim-all-rows">
-                                    <div class="sim-all-row">
-                                        <span class="sim-all-row-label">LEAGUE</span>
-                                        <div class="sim-progress-track">
-                                            <div class="sim-progress-fill" id="simAllFillLeague"></div>
-                                        </div>
-                                        <span class="sim-all-row-info" id="simAllInfoLeague">—</span>
-                                    </div>
-                                    <div class="sim-all-row">
-                                        <span class="sim-all-row-label">SEASON</span>
-                                        <div class="sim-progress-track">
-                                            <div class="sim-progress-fill" id="simAllFillSeason"></div>
-                                        </div>
-                                        <span class="sim-all-row-info" id="simAllInfoSeason">—</span>
-                                    </div>
-                                    <div class="sim-all-row">
-                                        <span class="sim-all-row-label">APPROACH</span>
-                                        <div class="sim-progress-track">
-                                            <div class="sim-progress-fill" id="simAllFillApproach"></div>
-                                        </div>
-                                        <span class="sim-all-row-info" id="simAllInfoApproach">—</span>
-                                    </div>
-                                    <div class="sim-all-row sim-all-row--total">
-                                        <span class="sim-all-row-label">TOTAL</span>
-                                        <div class="sim-progress-track">
-                                            <div class="sim-progress-fill sim-progress-fill--accent" id="simAllFillTotal"></div>
-                                        </div>
-                                        <span class="sim-all-row-info" id="simAllInfoTotal">—</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Single-run progress (shown during individual simulation) -->
-                            <div class="sim-progress" id="simProgress" style="display:none">
-                                <div class="sim-progress-header">
-                                    <span class="sim-progress-label" id="simProgressLabel">INITIALIZING...</span>
-                                    <span class="sim-progress-stats" id="simProgressStats"></span>
-                                </div>
-                                <div class="sim-progress-track">
-                                    <div class="sim-progress-fill" id="simProgressFill"></div>
-                                </div>
-                            </div>
-
-                            <!-- Results -->
-                            <div id="simulationContainer">
-                                <div class="football-placeholder">SELECT AN APPROACH TO BEGIN SIMULATION</div>
-                            </div>
-                        </div>
-
-                        <!-- Vertical resizer between status pane and selection pane -->
-                        <div class="sim-v-resizer" id="simVResizer"></div>
-
-                        <!-- Batch Selection Pane (bottom, fills remaining space with scrollbar) -->
-                        <div class="sim-batch-config" id="simBatchConfig">
-                            <div class="sim-batch-cols">
-                                <div class="sim-batch-col">
-                                    <div class="sim-batch-col-header">
-                                        <span class="sim-batch-col-title">LEAGUES</span>
-                                        <div class="sim-batch-col-actions">
-                                            <button class="sim-batch-action-btn" id="simBatchLeaguesAll">ALL</button>
-                                            <button class="sim-batch-action-btn" id="simBatchLeaguesClear">NONE</button>
-                                        </div>
-                                    </div>
-                                    <div class="sim-batch-list" id="simBatchLeagueList">
-                                        <div class="sim-batch-placeholder">NO COUNTRY SELECTED</div>
-                                    </div>
-                                </div>
-                                <div class="sim-batch-col">
-                                    <div class="sim-batch-col-header">
-                                        <span class="sim-batch-col-title">SEASONS</span>
-                                        <div class="sim-batch-col-actions">
-                                            <button class="sim-batch-action-btn" id="simBatchSeasonsAll">ALL</button>
-                                            <button class="sim-batch-action-btn" id="simBatchSeasonsClear">NONE</button>
-                                        </div>
-                                    </div>
-                                    <div class="sim-batch-list" id="simBatchSeasonList">
-                                        <div class="sim-batch-placeholder">SELECT LEAGUES FIRST</div>
-                                    </div>
-                                </div>
-                                <div class="sim-batch-col">
-                                    <div class="sim-batch-col-header">
-                                        <span class="sim-batch-col-title">APPROACHES</span>
-                                        <div class="sim-batch-col-actions">
-                                            <button class="sim-batch-action-btn" id="simBatchApproachesAll">ALL</button>
-                                            <button class="sim-batch-action-btn" id="simBatchApproachesClear">NONE</button>
-                                        </div>
-                                    </div>
-                                    <div class="sim-batch-list" id="simBatchApproachList">
-                                        <div class="sim-batch-placeholder">LOADING...</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <select class="football-select" id="simLeagueSelect" disabled>
+                            <option value="">-- Select League --</option>
+                        </select>
+                    </div>
+                    <div class="football-dropdown">
+                        <label class="football-dropdown-label" for="simSeasonSelect">SEASONS</label>
+                        <select class="football-select" id="simSeasonSelect" disabled>
+                            <option value="">-- Select Season --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="football-resizer" id="simResizer"></div>
+                <div class="football-area">
+                    <div class="football-content" id="simulationsContent">
+                        <div class="football-placeholder">SELECT A COUNTRY TO BEGIN</div>
                     </div>
                 </div>
             </div>

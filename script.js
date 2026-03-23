@@ -232,7 +232,7 @@ function handleLogin() {
             loginForm.style.display = 'none';
             document.getElementById('toolbar').style.display = 'flex';
             document.querySelector('.container').classList.add('expanded');
-            showFootballPanel();
+            hidePanels();
             document.body.style.alignItems = 'stretch';
             document.body.style.justifyContent = 'stretch';
             document.body.style.height = '100vh';
@@ -376,11 +376,21 @@ function activateMatrixMode() {
 // Toolbar Button Handlers
 document.addEventListener('DOMContentLoaded', () => {
     const homeBtn = document.getElementById('homeBtn');
+    const predictionsBtn = document.getElementById('predictionsBtn');
+    const simulationsBtn = document.getElementById('simulationsBtn');
     const settingsBtn = document.getElementById('settingsBtn');
     const helpBtn = document.getElementById('helpBtn');
 
     if (homeBtn) {
-        homeBtn.addEventListener('click', () => { showFootballPanel(); });
+        homeBtn.addEventListener('click', () => { hidePanels(); });
+    }
+
+    if (predictionsBtn) {
+        predictionsBtn.addEventListener('click', () => { showFootballPanel(); });
+    }
+
+    if (simulationsBtn) {
+        simulationsBtn.addEventListener('click', () => { showSimulationsPanel(); });
     }
 
     if (settingsBtn) {
@@ -547,6 +557,7 @@ setInterval(() => {
 function showGamesPanel() {
     hideSettingsPanel();
     hideFootballPanel();
+    hideSimulationsPanel();
     document.getElementById('gamesPanel').style.display = 'flex';
     if (tttBoard.every(c => !c)) resetTtt();
     else renderTttBoard();
@@ -559,6 +570,7 @@ function hideGamesPanel() {
 function showFootballPanel() {
     hideGamesPanel();
     hideSettingsPanel();
+    hideSimulationsPanel();
     document.getElementById('footballPanel').style.display = 'flex';
     loadFootballCountries();
 }
@@ -567,9 +579,22 @@ function hideFootballPanel() {
     document.getElementById('footballPanel').style.display = 'none';
 }
 
+function showSimulationsPanel() {
+    hideGamesPanel();
+    hideFootballPanel();
+    hideSettingsPanel();
+    document.getElementById('simulationsPanel').style.display = 'flex';
+    loadSimCountries();
+}
+
+function hideSimulationsPanel() {
+    document.getElementById('simulationsPanel').style.display = 'none';
+}
+
 function showSettingsPanel() {
     hideGamesPanel();
     hideFootballPanel();
+    hideSimulationsPanel();
     document.getElementById('settingsPanel').style.display = 'flex';
 }
 
@@ -581,6 +606,7 @@ function hidePanels() {
     hideGamesPanel();
     hideSettingsPanel();
     hideFootballPanel();
+    hideSimulationsPanel();
 }
 
 // Game sidebar navigation
@@ -733,6 +759,57 @@ document.addEventListener('DOMContentLoaded', () => {
             clearStandings();
             hideRoundsTabBtn();
         }
+    });
+
+    // Simulations cascading dropdowns
+    document.getElementById('simCountrySelect')?.addEventListener('change', async e => {
+        updateCountryFavBtn(e.target.value);
+        await populateSimLeagueSelect(e.target.value);
+    });
+
+    // Favourites — sim country
+    document.getElementById('simCountryFavBtn')?.addEventListener('click', () => {
+        const sel = document.getElementById('simCountrySelect');
+        if (!sel?.value) return;
+        const id = String(sel.value);
+        if (favCountries.has(id)) favCountries.delete(id); else favCountries.add(id);
+        saveFavCountries();
+        renderCountryOptions(sel);
+    });
+    document.getElementById('simCountryFavFilterBtn')?.addEventListener('click', e => {
+        favCountriesOnly = !favCountriesOnly;
+        e.currentTarget.classList.toggle('active', favCountriesOnly);
+        const sel = document.getElementById('simCountrySelect');
+        if (sel) renderCountryOptions(sel);
+    });
+
+    // Favourites — sim league
+    document.getElementById('simLeagueFavBtn')?.addEventListener('click', () => {
+        const sel = document.getElementById('simLeagueSelect');
+        if (!sel?.value) return;
+        const id = String(sel.value);
+        if (favLeagues.has(id)) favLeagues.delete(id); else favLeagues.add(id);
+        saveFavLeagues();
+        const saved = footballLeagues;
+        footballLeagues = simLeagues;
+        renderLeagueOptions(sel);
+        footballLeagues = saved;
+    });
+    document.getElementById('simLeagueFavFilterBtn')?.addEventListener('click', e => {
+        favLeaguesOnly = !favLeaguesOnly;
+        e.currentTarget.classList.toggle('active', favLeaguesOnly);
+        const sel = document.getElementById('simLeagueSelect');
+        if (sel) {
+            const saved = footballLeagues;
+            footballLeagues = simLeagues;
+            renderLeagueOptions(sel);
+            footballLeagues = saved;
+        }
+    });
+
+    document.getElementById('simLeagueSelect')?.addEventListener('change', async e => {
+        updateLeagueFavBtn(e.target.value);
+        await populateSimSeasonSelect(e.target.value);
     });
 
     // Football tab buttons
@@ -1433,21 +1510,25 @@ function saveFavCountries() { localStorage.setItem('favCountries', JSON.stringif
 function saveFavLeagues()   { localStorage.setItem('favLeagues',   JSON.stringify([...favLeagues])); }
 
 function updateCountryFavBtn(id) {
-    const btn = document.getElementById('countryFavBtn');
-    if (!btn) return;
-    const isFav = id && favCountries.has(String(id));
-    btn.disabled = !id;
-    btn.textContent = isFav ? '★' : '☆';
-    btn.classList.toggle('is-fav', !!isFav);
+    for (const btnId of ['countryFavBtn', 'simCountryFavBtn']) {
+        const btn = document.getElementById(btnId);
+        if (!btn) continue;
+        const isFav = id && favCountries.has(String(id));
+        btn.disabled = !id;
+        btn.textContent = isFav ? '★' : '☆';
+        btn.classList.toggle('is-fav', !!isFav);
+    }
 }
 
 function updateLeagueFavBtn(id) {
-    const btn = document.getElementById('leagueFavBtn');
-    if (!btn) return;
-    const isFav = id && favLeagues.has(String(id));
-    btn.disabled = !id;
-    btn.textContent = isFav ? '★' : '☆';
-    btn.classList.toggle('is-fav', !!isFav);
+    for (const btnId of ['leagueFavBtn', 'simLeagueFavBtn']) {
+        const btn = document.getElementById(btnId);
+        if (!btn) continue;
+        const isFav = id && favLeagues.has(String(id));
+        btn.disabled = !id;
+        btn.textContent = isFav ? '★' : '☆';
+        btn.classList.toggle('is-fav', !!isFav);
+    }
 }
 
 async function loadFootballCountries() {
@@ -1627,6 +1708,101 @@ async function populateSeasonSelect(leagueId) {
     }
 }
 
+// ── Simulations panel dropdowns ───────────────────────────────────────────────
+let simLeagues = [];
+let simSeasons = [];
+
+async function loadSimCountries() {
+    const select = document.getElementById('simCountrySelect');
+    if (!select) return;
+
+    if (!countriesLoaded) {
+        select.innerHTML = '<option value="">-- LOADING... --</option>';
+        select.disabled = true;
+        try {
+            const res = await apiFetch(`${getApiBase()}/api/Football/countries`, { headers: { 'accept': '*/*' } });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            footballCountries = await res.json();
+            countriesLoaded = true;
+        } catch (err) {
+            console.error('Failed to load countries:', err);
+            select.innerHTML = '<option value="">-- ERROR LOADING --</option>';
+            showError('Failed to load countries');
+            return;
+        }
+        select.disabled = false;
+    }
+
+    renderCountryOptions(select);
+}
+
+async function populateSimLeagueSelect(countryId) {
+    const leagueSelect = document.getElementById('simLeagueSelect');
+    const seasonSelect = document.getElementById('simSeasonSelect');
+    if (!leagueSelect || !seasonSelect) return;
+
+    leagueSelect.innerHTML = '<option value="">-- Select League --</option>';
+    leagueSelect.disabled = true;
+    seasonSelect.innerHTML = '<option value="">-- Select Season --</option>';
+    seasonSelect.disabled = true;
+    simLeagues = [];
+    simSeasons = [];
+
+    if (!countryId) return;
+
+    leagueSelect.innerHTML = '<option value="">-- LOADING... --</option>';
+
+    try {
+        const res = await apiFetch(`${getApiBase()}/api/Football/countries/${countryId}/leagues`, { headers: { 'accept': '*/*' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        simLeagues = await res.json();
+
+        const savedLeagues = footballLeagues;
+        footballLeagues = simLeagues;
+        renderLeagueOptions(leagueSelect);
+        footballLeagues = savedLeagues;
+
+        leagueSelect.disabled = false;
+        updateLeagueFavBtn(leagueSelect.value);
+    } catch (err) {
+        console.error('Failed to load leagues:', err);
+        leagueSelect.innerHTML = '<option value="">-- ERROR LOADING --</option>';
+        showError('Failed to load leagues');
+    }
+}
+
+async function populateSimSeasonSelect(leagueId) {
+    const seasonSelect = document.getElementById('simSeasonSelect');
+    if (!seasonSelect) return;
+
+    seasonSelect.innerHTML = '<option value="">-- Select Season --</option>';
+    seasonSelect.disabled = true;
+    simSeasons = [];
+
+    if (!leagueId) return;
+
+    seasonSelect.innerHTML = '<option value="">-- LOADING... --</option>';
+
+    try {
+        const res = await apiFetch(`${getApiBase()}/api/Football/leagues/${leagueId}/seasons`, { headers: { 'accept': '*/*' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        simSeasons = await res.json();
+
+        seasonSelect.innerHTML = '<option value="">-- Select Season --</option>';
+        simSeasons.forEach(season => {
+            const opt = document.createElement('option');
+            opt.value = season.id;
+            opt.textContent = season.isActive ? `${season.year} ★` : `${season.year}`;
+            seasonSelect.appendChild(opt);
+        });
+        seasonSelect.disabled = false;
+    } catch (err) {
+        console.error('Failed to load seasons:', err);
+        seasonSelect.innerHTML = '<option value="">-- ERROR LOADING --</option>';
+        showError('Failed to load seasons');
+    }
+}
+
 function renderFootballContent() {
     const container = document.getElementById('footballContent');
     if (!container) return;
@@ -1788,13 +1964,13 @@ async function openInspection(game, seasonId) {
 
     // Create tab button
     const tabsBar = document.querySelector('.football-tabs');
-    const simBtn  = document.getElementById('tabBtnSimulation');
+    const approachesBtn = document.getElementById('tabBtnApproaches');
     const tabBtn  = document.createElement('button');
     tabBtn.className  = 'football-tab-btn dynamic-inspection-tab';
     tabBtn.id         = 'tabBtn_' + tabId;
     const label = `${game.homeTeamName.toUpperCase().split(' ')[0]} vs ${game.awayTeamName.toUpperCase().split(' ')[0]}`;
     tabBtn.innerHTML  = `${label} <span class="football-tab-close" data-tabid="${tabId}">×</span>`;
-    tabsBar.insertBefore(tabBtn, simBtn);
+    tabsBar.insertBefore(tabBtn, approachesBtn);
 
     // Create panel — sibling of .football-tabs inside .football-area
     const panelsHost = document.querySelector('.football-area');
