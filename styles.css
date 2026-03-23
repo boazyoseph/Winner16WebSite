@@ -2369,10 +2369,15 @@ body {
     cursor: not-allowed;
 }
 
+.football-round-nav {
+    position: relative;
+}
+
 .round-nav-btn--clear {
     color: var(--color-error, #ff4444);
     border-color: var(--color-error, #ff4444);
-    margin-left: auto;
+    position: absolute;
+    right: 0;
 }
 
 .round-nav-btn--clear:hover {
