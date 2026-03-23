@@ -2369,6 +2369,16 @@ body {
     cursor: not-allowed;
 }
 
+.round-nav-btn--clear {
+    color: var(--color-error, #ff4444);
+    border-color: var(--color-error, #ff4444);
+    margin-left: auto;
+}
+
+.round-nav-btn--clear:hover {
+    box-shadow: 0 0 8px var(--color-error, #ff4444);
+}
+
 .round-label {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 13px;

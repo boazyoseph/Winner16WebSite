@@ -106,9 +106,12 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="password">
-                        <span class="prompt">$</span> PASSWORD
-                    </label>
+                    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;">
+                        <label for="password" style="margin:0; display:inline;">
+                            <span class="prompt">$</span> PASSWORD
+                        </label>
+                        <a href="#" class="link-text" style="font-size:0.75em;">Forgot Password?</a>
+                    </div>
                     <input
                         type="password"
                         id="password"
@@ -117,13 +120,13 @@
                     >
                 </div>
 
-                <div class="options-row">
-                    <a href="#" class="link-text">Forgot Password?</a>
-                </div>
-
                 <button class="btn-primary glitch" id="loginBtn" data-text="INITIALIZE">
                     INITIALIZE
                 </button>
+
+                <div style="text-align:right; margin-top:8px;">
+                    <a href="#" class="link-text" id="createAccountLink">No account? Create one</a>
+                </div>
 
             </div>
 
@@ -241,9 +244,7 @@
                         <button class="football-tab-btn" id="tabBtnSimilar" style="display:none">
                             SIMILAR <span class="football-tab-close" id="closeSimilarTabBtn">×</span>
                         </button>
-                        <button class="football-tab-btn" id="tabBtnInspection" style="display:none">
-                            INSPECTION <span class="football-tab-close" id="closeInspectionTabBtn">×</span>
-                        </button>
+                        <!-- dynamic inspection tabs injected here -->
                         <button class="football-tab-btn" id="tabBtnSimulation">
                             SIMULATION
                         </button>
@@ -266,6 +267,7 @@
                             <button class="round-nav-btn" id="roundPrevBtn" disabled>◀ PREV</button>
                             <span class="round-label">ROUND <span id="roundNumber">1</span></span>
                             <button class="round-nav-btn" id="roundNextBtn">NEXT ▶</button>
+                            <button class="round-nav-btn round-nav-btn--clear" id="roundClearBtn">CLEAR</button>
                         </div>
                         <div id="gamesContainer"></div>
                     </div>
@@ -314,12 +316,7 @@
                         </div>
                     </div>
 
-                    <!-- Inspection panel -->
-                    <div class="football-rounds-panel" id="footballInspectionPanel" style="display:none">
-                        <div id="inspectionContainer">
-                            <div class="football-placeholder">SELECT A FINISHED GAME IN ROUNDS TO INSPECT</div>
-                        </div>
-                    </div>
+                    <!-- dynamic inspection panels injected here -->
 
                     <!-- Sim Results panel -->
                     <div class="football-rounds-panel" id="footballSimResultsPanel" style="display:none">

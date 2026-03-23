@@ -11,6 +11,37 @@ function getApiBase() {
     return localStorage.getItem('useLocalServer') === 'true' ? LOCAL_API_BASE : ACCESS_API_BASE;
 }
 
+// ── Auth helpers ──────────────────────────────────────────────────────────────
+function isTokenExpired() {
+    const expiry = localStorage.getItem('authTokenExpiry');
+    return expiry ? new Date() >= new Date(expiry) : false;
+}
+
+function handleUnauthorized() {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('authTokenExpiry');
+    document.querySelector('.container')?.classList.remove('expanded');
+    const toolbar = document.getElementById('toolbar');
+    if (toolbar) toolbar.style.display = 'none';
+    const termOut = document.querySelector('.terminal-output');
+    if (termOut) termOut.style.display = '';
+    const loginContainer = document.getElementById('loginContainer');
+    if (loginContainer) loginContainer.style.display = '';
+    try { hidePanels(); } catch {}
+    showError('Session expired. Please log in again.');
+}
+
+async function apiFetch(url, options = {}) {
+    if (isTokenExpired()) { handleUnauthorized(); throw new Error('UNAUTHORIZED'); }
+    const token = localStorage.getItem('authToken');
+    const headers = { ...(options.headers || {}) };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401) { handleUnauthorized(); throw new Error('UNAUTHORIZED'); }
+    return res;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ── Health-check polling ──────────────────────────────────────────────────────
 const PING_INTERVAL = 15000; // 15 s
 
@@ -187,9 +218,10 @@ function handleLogin() {
 
         console.log('Login successful:', data);
 
-        // Store token if needed
+        // Store token
         if (data.token) {
             localStorage.setItem('authToken', data.token);
+            if (data.expiresAt) localStorage.setItem('authTokenExpiry', data.expiresAt);
         }
 
         showSuccess('ACCESS GRANTED');
@@ -208,8 +240,8 @@ function handleLogin() {
 
             // Update status bar with username
             const statusMessage = document.getElementById('statusMessage');
-            if (statusMessage && data.user) {
-                statusMessage.textContent = `Welcome, ${data.user.username}`;
+            if (statusMessage) {
+                statusMessage.textContent = `Welcome, ${username}`;
             }
 
             // Reset form
@@ -441,7 +473,7 @@ function handleRegistration(e) {
     registerBtn.disabled = true;
 
     // Call registration API
-    fetch(getApiBase() + '/api/User/account', {
+    fetch(getApiBase() + '/api/users', {
         method: 'POST',
         headers: {
             'accept': '*/*',
@@ -758,16 +790,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabBtn) tabBtn.style.display = 'none';
         switchFootballTab('matches');
     });
-    document.getElementById('tabBtnInspection')?.addEventListener('click', e => {
-        if (e.target.id === 'closeInspectionTabBtn' || e.target.closest('#closeInspectionTabBtn')) return;
-        switchFootballTab('inspection');
-    });
-    document.getElementById('closeInspectionTabBtn')?.addEventListener('click', e => {
-        e.stopPropagation();
-        const tabBtn = document.getElementById('tabBtnInspection');
-        if (tabBtn) tabBtn.style.display = 'none';
-        switchFootballTab('rounds');
-    });
 
     document.getElementById('predictGamesBtn')?.addEventListener('click', predictGames);
     document.getElementById('tabBtnPredict')?.addEventListener('click', e => {
@@ -875,6 +897,16 @@ document.addEventListener('DOMContentLoaded', () => {
         currentRound++;
         document.getElementById('roundNumber').textContent = currentRound;
         loadGames(currentSeasonId, currentRound);
+    });
+
+    document.getElementById('roundClearBtn')?.addEventListener('click', () => {
+        selectedGames.length = 0;
+        updateMatchesBadge();
+        // remove all dynamic inspection tabs and panels
+        document.querySelectorAll('.dynamic-inspection-tab').forEach(t => t.remove());
+        document.querySelectorAll('.dynamic-inspection-panel').forEach(p => p.remove());
+        // deselect all game rows
+        document.querySelectorAll('.game-row.selected').forEach(r => r.classList.remove('selected'));
     });
 });
 
@@ -1035,7 +1067,7 @@ async function loadApproachesTab() {
     if (!container) return;
     container.innerHTML = '<div class="football-placeholder">LOADING...</div>';
     try {
-        const res = await fetch(`${getApiBase()}/api/Prediction/approaches`, { headers: { 'accept': '*/*' } });
+        const res = await apiFetch(`${getApiBase()}/api/Prediction/approaches`, { headers: { 'accept': '*/*' } });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const approaches = await res.json();
         renderApproachesPanel(approaches);
@@ -1126,7 +1158,7 @@ let cachedApproaches = null;
 
 async function loadPredictionApproaches() {
     if (cachedApproaches) return cachedApproaches;
-    const res = await fetch(`${getApiBase()}/api/Prediction/approaches`, {
+    const res = await apiFetch(`${getApiBase()}/api/Prediction/approaches`, {
         headers: { 'accept': '*/*' }
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1140,7 +1172,7 @@ async function loadBestPredictionApproaches() {
     if (top === 0) return allApproaches;
     const params = new URLSearchParams({ top });
     if (currentSeasonId) params.set('seasonId', currentSeasonId);
-    const res = await fetch(`${getApiBase()}/api/Prediction/best-approaches?${params}`, {
+    const res = await apiFetch(`${getApiBase()}/api/Prediction/best-approaches?${params}`, {
         headers: { 'accept': '*/*' }
     });
     if (!res.ok) return allApproaches;
@@ -1172,7 +1204,7 @@ async function predictGames() {
                         const url = `${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamHomeId}&awayTeamId=${game.teamOutId}&seasonId=${game.seasonId}&round=${game.round}&approach=${approach.index}`;
                         console.log(`[PREDICT] Fetching: ${url}`);
                         try {
-                            const r = await fetch(url, { headers: { 'accept': '*/*' } });
+                            const r = await apiFetch(url, { headers: { 'accept': '*/*' } });
                             if (!r.ok) {
                                 console.warn(`[PREDICT] HTTP ${r.status} for approach ${approach.index} (${approach.name}):`, await r.text().catch(() => ''));
                                 return null;
@@ -1428,7 +1460,7 @@ async function loadFootballCountries() {
     select.disabled = true;
 
     try {
-        const res = await fetch(`${getApiBase()}/api/Football/countries`, {
+        const res = await apiFetch(`${getApiBase()}/api/Football/countries`, {
             headers: { 'accept': '*/*' }
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1545,7 +1577,7 @@ async function populateLeagueSelect(countryId) {
     leagueSelect.innerHTML = '<option value="">-- LOADING... --</option>';
 
     try {
-        const res = await fetch(`${getApiBase()}/api/Football/countries/${countryId}/leagues`, {
+        const res = await apiFetch(`${getApiBase()}/api/Football/countries/${countryId}/leagues`, {
             headers: { 'accept': '*/*' }
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1574,7 +1606,7 @@ async function populateSeasonSelect(leagueId) {
     seasonSelect.innerHTML = '<option value="">-- LOADING... --</option>';
 
     try {
-        const res = await fetch(`${getApiBase()}/api/Football/leagues/${leagueId}/seasons`, {
+        const res = await apiFetch(`${getApiBase()}/api/Football/leagues/${leagueId}/seasons`, {
             headers: { 'accept': '*/*' }
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1720,8 +1752,22 @@ function switchFootballTab(tabName) {
     Object.values(panels).forEach(p => { if (p) p.style.display = 'none'; });
     Object.values(tabs).forEach(t => { if (t) t.classList.remove('active'); });
 
-    if (panels[tabName]) panels[tabName].style.display = 'flex';
-    if (tabs[tabName])   tabs[tabName].classList.add('active');
+    // hide/deactivate all dynamic inspection tabs
+    document.querySelectorAll('.dynamic-inspection-panel').forEach(p => p.style.display = 'none');
+    document.querySelectorAll('.dynamic-inspection-tab').forEach(t => t.classList.remove('active'));
+
+    if (panels[tabName]) {
+        panels[tabName].style.display = 'flex';
+    } else {
+        const dynPanel = document.getElementById('panel_' + tabName);
+        if (dynPanel) dynPanel.style.display = 'flex';
+    }
+    if (tabs[tabName]) {
+        tabs[tabName].classList.add('active');
+    } else {
+        const dynTab = document.getElementById('tabBtn_' + tabName);
+        if (dynTab) dynTab.classList.add('active');
+    }
 
     if (tabName === 'matches') renderMatchesPanel();
 }
@@ -1732,28 +1778,67 @@ let inspectedGame = null;
 async function openInspection(game, seasonId) {
     inspectedGame = game;
 
-    const tabBtn = document.getElementById('tabBtnInspection');
-    if (tabBtn) tabBtn.style.display = '';
-    switchFootballTab('inspection');
+    const tabId = `inspect_${game.teamIdHome}_${game.teamIdOut}_${game.round}`;
 
-    const container = document.getElementById('inspectionContainer');
-    if (!container) return;
+    // If tab already exists just switch to it
+    if (document.getElementById('panel_' + tabId)) {
+        switchFootballTab(tabId);
+        return;
+    }
+
+    // Create tab button
+    const tabsBar = document.querySelector('.football-tabs');
+    const simBtn  = document.getElementById('tabBtnSimulation');
+    const tabBtn  = document.createElement('button');
+    tabBtn.className  = 'football-tab-btn dynamic-inspection-tab';
+    tabBtn.id         = 'tabBtn_' + tabId;
+    const label = `${game.homeTeamName.toUpperCase().split(' ')[0]} vs ${game.awayTeamName.toUpperCase().split(' ')[0]}`;
+    tabBtn.innerHTML  = `${label} <span class="football-tab-close" data-tabid="${tabId}">×</span>`;
+    tabsBar.insertBefore(tabBtn, simBtn);
+
+    // Create panel — sibling of .football-tabs inside .football-area
+    const panelsHost = document.querySelector('.football-area');
+    const panel = document.createElement('div');
+    panel.className   = 'football-rounds-panel dynamic-inspection-panel';
+    panel.id          = 'panel_' + tabId;
+    panel.style.display = 'none';
+    const container   = document.createElement('div');
+    container.id      = 'container_' + tabId;
     container.innerHTML = '<div class="football-placeholder">LOADING INSPECTION...</div>';
+    panel.appendChild(container);
+    panelsHost.appendChild(panel);
+
+    // Tab click — switch to this tab
+    tabBtn.addEventListener('click', e => {
+        if (e.target.dataset.tabid) return; // close btn handled below
+        switchFootballTab(tabId);
+    });
+
+    // Close button — remove tab + panel, go back to rounds
+    tabBtn.querySelector('[data-tabid]').addEventListener('click', e => {
+        e.stopPropagation();
+        tabBtn.remove();
+        panel.remove();
+        switchFootballTab('rounds');
+    });
+
+    // stay on rounds tab while inspection loads in background
+    switchFootballTab('rounds');
 
     try {
         const approaches = await loadPredictionApproaches();
 
         const status = (game.status || '').toUpperCase();
-        const finishedStatuses  = ['FT', 'AET', 'PEN', 'AWD', 'WO'];
+        const finishedStatuses   = ['FT', 'AET', 'PEN', 'AWD', 'WO'];
         const inProgressStatuses = ['1H', 'HT', '2H', 'ET', 'BT', 'LIVE'];
-        const finished  = finishedStatuses.some(s => status === s || status.includes(s));
-        const hasScore  = finished || inProgressStatuses.some(s => status === s || status.includes(s));
+        const finished     = finishedStatuses.some(s => status === s || status.includes(s));
+        const hasScore     = finished || inProgressStatuses.some(s => status === s || status.includes(s));
         const hs = game.homeFullTimeScore, as_ = game.outFullTimeScore;
         const actualResult = finished ? (hs > as_ ? '1' : hs < as_ ? '2' : 'X') : null;
 
         const predictions = await Promise.all(
             approaches.map(approach =>
-                fetch(`${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamIdHome}&awayTeamId=${game.teamIdOut}&seasonId=${seasonId}&round=${game.round}&approach=${approach.index}`, {
+                apiFetch(`${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamIdHome}&awayTeamId=${game.teamIdOut}&seasonId=${seasonId}&round=${game.round}&approach=${approach.index}`, {
                     headers: { 'accept': '*/*' }
                 })
                 .then(r => r.ok ? r.json() : null)
@@ -1761,14 +1846,15 @@ async function openInspection(game, seasonId) {
             )
         );
 
-        renderInspectionPanel(game, actualResult, hasScore, approaches, predictions);
+        renderInspectionPanel(game, actualResult, hasScore, approaches, predictions, 'container_' + tabId);
     } catch (err) {
-        if (container) container.innerHTML = `<div class="football-placeholder">ERROR: ${err.message}</div>`;
+        const c = document.getElementById('container_' + tabId);
+        if (c) c.innerHTML = `<div class="football-placeholder">ERROR: ${err.message}</div>`;
     }
 }
 
-function renderInspectionPanel(game, actualResult, hasScore, approaches, predictions) {
-    const container = document.getElementById('inspectionContainer');
+function renderInspectionPanel(game, actualResult, hasScore, approaches, predictions, containerId = 'inspectionContainer') {
+    const container = document.getElementById(containerId);
     if (!container) return;
 
     const finished = actualResult !== null;
@@ -2036,7 +2122,7 @@ async function loadWinner16Ids() {
     const select = document.getElementById('winner16IdInput');
     if (!select) return;
     try {
-        const res = await fetch(`${getApiBase()}/api/prediction/games/winner16-ids`, {
+        const res = await apiFetch(`${getApiBase()}/api/prediction/games/winner16-ids`, {
             headers: { 'accept': 'application/json' },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -2068,7 +2154,7 @@ async function saveMatchesToDb() {
         return;
     }
     try {
-        const res = await fetch(`${getApiBase()}/api/Prediction/games`, {
+        const res = await apiFetch(`${getApiBase()}/api/Prediction/games`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'accept': '*/*' },
             body: JSON.stringify(selectedGames.map((g, i) => ({
@@ -2094,7 +2180,7 @@ async function loadMatchesFromDb() {
         return;
     }
     try {
-        const res = await fetch(`${getApiBase()}/api/Prediction/games?winner16Id=${encodeURIComponent(winner16Id)}`, {
+        const res = await apiFetch(`${getApiBase()}/api/Prediction/games?winner16Id=${encodeURIComponent(winner16Id)}`, {
             headers: { 'accept': 'application/json' },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -2109,7 +2195,7 @@ async function loadMatchesFromDb() {
         await Promise.all(groupKeys.map(async key => {
             const [seasonId, round] = key.split('_');
             try {
-                const r = await fetch(`${getApiBase()}/api/Football/seasons/${seasonId}/rounds/${round}/games`, {
+                const r = await apiFetch(`${getApiBase()}/api/Football/seasons/${seasonId}/rounds/${round}/games`, {
                     headers: { 'accept': '*/*' }
                 });
                 if (r.ok) footballGamesCache[key] = await r.json();
@@ -2167,7 +2253,7 @@ async function findSimilarGames() {
             awayTeamId: game.teamOutId,
             threshold:  10
         });
-        const res = await fetch(`${getApiBase()}/api/Prediction/similar-games?${params}`, {
+        const res = await apiFetch(`${getApiBase()}/api/Prediction/similar-games?${params}`, {
             headers: { 'accept': '*/*' }
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -2269,7 +2355,7 @@ async function loadGames(seasonId, round) {
     if (nextBtn) nextBtn.disabled = false;
 
     try {
-        const res = await fetch(`${getApiBase()}/api/Football/seasons/${seasonId}/rounds/${round}/games`, {
+        const res = await apiFetch(`${getApiBase()}/api/Football/seasons/${seasonId}/rounds/${round}/games`, {
             headers: { 'accept': '*/*' }
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -2320,11 +2406,11 @@ async function loadGames(seasonId, round) {
                     g.teamOutId  === game.teamIdOut);
 
                 if (existingIdx >= 0) {
-                    // Toggle off — remove from list
+                    // Toggle off — remove from list, no inspection
                     selectedGames.splice(existingIdx, 1);
                     tr.classList.remove('selected');
                 } else {
-                    // Toggle on — add to list
+                    // Toggle on — add to list and open inspection tab
                     selectedGames.push({
                         seasonId,
                         teamHomeId:        game.teamIdHome,
@@ -2338,13 +2424,10 @@ async function loadGames(seasonId, round) {
                         round:             game.round
                     });
                     tr.classList.add('selected');
+                    openInspection(game, seasonId);
                 }
 
                 updateMatchesBadge();
-                console.log('selectedGames:', selectedGames);
-
-                // Open inspection for all games
-                openInspection(game, seasonId);
             });
 
             tbody.appendChild(tr);
@@ -2386,7 +2469,7 @@ async function loadStandings(seasonId) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;letter-spacing:2px;color:var(--color-text-dim)">LOADING...</td></tr>';
 
     try {
-        const res = await fetch(`${getApiBase()}/api/Football/seasons/${seasonId}/standings`, {
+        const res = await apiFetch(`${getApiBase()}/api/Football/seasons/${seasonId}/standings`, {
             headers: { 'accept': '*/*' }
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -2459,7 +2542,7 @@ async function loadBatchLeagues(countryId) {
     list.innerHTML = '<div class="sim-batch-placeholder">LOADING...</div>';
 
     try {
-        const res = await fetch(`${getApiBase()}/api/Football/countries/${countryId}/leagues`, { headers: { 'accept': '*/*' } });
+        const res = await apiFetch(`${getApiBase()}/api/Football/countries/${countryId}/leagues`, { headers: { 'accept': '*/*' } });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const leagues = await res.json();
         batchLeaguesData = leagues.map(l => ({ id: l.id, name: l.name, seasons: null }));
@@ -2508,7 +2591,7 @@ async function refreshBatchSeasons() {
         if (!league) continue;
         if (!league.seasons) {
             try {
-                const res = await fetch(`${getApiBase()}/api/Football/leagues/${league.id}/seasons`, { headers: { 'accept': '*/*' } });
+                const res = await apiFetch(`${getApiBase()}/api/Football/leagues/${league.id}/seasons`, { headers: { 'accept': '*/*' } });
                 league.seasons = res.ok ? (await res.json()).filter(s => !s.isActive) : [];
             } catch { league.seasons = []; }
         }
@@ -2634,7 +2717,7 @@ async function runSimulation() {
         while (true) {
             updateProgress(round, runningCorrect, runningTotal - runningFailed, runningFailed);
 
-            const res = await fetch(`${getApiBase()}/api/Football/seasons/${seasonId}/rounds/${round}/games`, {
+            const res = await apiFetch(`${getApiBase()}/api/Football/seasons/${seasonId}/rounds/${round}/games`, {
                 headers: { 'accept': '*/*' }
             });
             if (!res.ok) break;
@@ -2884,7 +2967,7 @@ async function loadSavedSimulations() {
 
         const qs  = params.toString();
         const url = `${getApiBase()}/api/Prediction/simulation${qs ? '?' + qs : ''}`;
-        const res = await fetch(url, { headers: { 'accept': '*/*' } });
+        const res = await apiFetch(url, { headers: { 'accept': '*/*' } });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
 
@@ -2917,7 +3000,7 @@ async function deleteSimulationResults() {
         if (currentSeasonId) params.set('seasonId', currentSeasonId);
 
         const url = `${getApiBase()}/api/Prediction/simulation?${params.toString()}`;
-        const res = await fetch(url, { method: 'DELETE', headers: { 'accept': '*/*' } });
+        const res = await apiFetch(url, { method: 'DELETE', headers: { 'accept': '*/*' } });
         if (!res.ok) throw new Error('HTTP ' + res.status);
 
         showSuccess('SIMULATION RESULTS DELETED');
@@ -3052,7 +3135,7 @@ async function runAllApproaches() {
 
             // Use cached seasons from batch UI if available, else fetch
             if (!league.seasons) {
-                const res = await fetch(`${getApiBase()}/api/Football/leagues/${league.id}/seasons`, { headers: { 'accept': '*/*' } });
+                const res = await apiFetch(`${getApiBase()}/api/Football/leagues/${league.id}/seasons`, { headers: { 'accept': '*/*' } });
                 league.seasons = res.ok ? (await res.json()).filter(s => !s.isActive) : [];
             }
 
