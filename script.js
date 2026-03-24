@@ -856,7 +856,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('simResultsLoadBtn')?.addEventListener('click', loadSavedSimulations);
     document.getElementById('simResultsDeleteBtn')?.addEventListener('click', deleteSimulationResults);
 
-    document.getElementById('findSimilarBtn')?.addEventListener('click', findSimilarGames);
     document.getElementById('tabBtnSimilar')?.addEventListener('click', e => {
         if (e.target.id === 'closeSimilarTabBtn' || e.target.closest('#closeSimilarTabBtn')) return;
         switchFootballTab('similar');
@@ -1878,7 +1877,6 @@ function renderFootballContent() {
 let currentSeasonId = null;
 let currentRound = 1;
 let selectedGames = [];       // accumulates { seasonId, teamHomeId, teamOutId, + display fields }
-let matchesSelectedGame = null; // game focused in matches panel for similar-games lookup
 
 function showRoundsTabBtn() {
     const btn = document.getElementById('tabBtnRounds');
@@ -1945,11 +1943,34 @@ function switchFootballTab(tabName) {
         if (dynTab) dynTab.classList.add('active');
     }
 
-    if (tabName === 'matches') renderMatchesPanel();
+    if (tabName === 'matches') { loadWinner16Ids(); renderMatchesPanel(); }
 }
 
 // ── Inspection ────────────────────────────────────────────────────────────────
 let inspectedGame = null;
+
+async function fetchTeamForm(seasonId, teamId, beforeRound) {
+    const results = [];
+    await Promise.all(
+        Array.from({ length: beforeRound }, (_, i) => i + 1).map(async r => {
+            try {
+                const res = await apiFetch(`${getApiBase()}/api/Football/seasons/${seasonId}/rounds/${r}/games`, {
+                    headers: { 'accept': '*/*' }
+                });
+                if (!res.ok) return;
+                const games = await res.json();
+                const g = games.find(g => g.teamIdHome === teamId || g.teamIdOut === teamId);
+                if (!g) return;
+                const hs = g.homeFullTimeScore, as_ = g.outFullTimeScore;
+                if (hs == null || as_ == null) return;
+                const isHome = g.teamIdHome === teamId;
+                const result = hs === as_ ? 'D' : ((isHome ? hs > as_ : as_ > hs) ? 'W' : 'L');
+                results.push({ round: r, result });
+            } catch { /* skip */ }
+        })
+    );
+    return results.sort((a, b) => a.round - b.round);
+}
 
 async function openInspection(game, seasonId) {
     inspectedGame = game;
@@ -1998,11 +2019,18 @@ async function openInspection(game, seasonId) {
         switchFootballTab('rounds');
     });
 
-    // stay on rounds tab while inspection loads in background
-    switchFootballTab('rounds');
-
     try {
-        const approaches = await loadPredictionApproaches();
+        const roundNum = parseInt(game.round) || 0;
+        const [approaches, homeForm, awayForm, h2hGames, standings] = await Promise.all([
+            loadPredictionApproaches().catch(() => []),
+            fetchTeamForm(seasonId, game.teamIdHome, roundNum),
+            fetchTeamForm(seasonId, game.teamIdOut, roundNum),
+            fetchH2HGames(game.teamIdHome, game.teamIdOut),
+            apiFetch(`${getApiBase()}/api/Football/seasons/${seasonId}/standings`, { headers: { 'accept': '*/*' } })
+                .then(r => r.ok ? r.json() : []).catch(() => []),
+        ]);
+        const homePos = standings.find(s => s.teamId === game.teamIdHome)?.position ?? null;
+        const awayPos = standings.find(s => s.teamId === game.teamIdOut)?.position ?? null;
 
         const status = (game.status || '').toUpperCase();
         const finishedStatuses   = ['FT', 'AET', 'PEN', 'AWD', 'WO'];
@@ -2020,16 +2048,155 @@ async function openInspection(game, seasonId) {
                 .then(r => r.ok ? r.json() : null)
                 .catch(() => null)
             )
-        );
+        ).catch(() => []);
 
-        renderInspectionPanel(game, actualResult, hasScore, approaches, predictions, 'container_' + tabId);
+        renderInspectionPanel(game, actualResult, hasScore, approaches, predictions, 'container_' + tabId, homeForm, awayForm, h2hGames, homePos, awayPos);
+        switchFootballTab(tabId);
     } catch (err) {
         const c = document.getElementById('container_' + tabId);
         if (c) c.innerHTML = `<div class="football-placeholder">ERROR: ${err.message}</div>`;
+        switchFootballTab(tabId);
     }
 }
 
-function renderInspectionPanel(game, actualResult, hasScore, approaches, predictions, containerId = 'inspectionContainer') {
+async function fetchH2HGames(homeTeamId, awayTeamId) {
+    try {
+        const res = await apiFetch(`${getApiBase()}/api/Football/teams/${homeTeamId}/matchups/${awayTeamId}`, {
+            headers: { 'accept': 'application/json' }
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (Array.isArray(data) ? data : []).reverse(); // SP returns newest-first; reverse to chronological
+    } catch { return []; }
+}
+
+let _graphIdCounter = 0;
+
+function _smoothCurvePath(pts) {
+    if (!pts.length) return '';
+    if (pts.length === 1) return `M${pts[0].x},${pts[0].y}`;
+    let d = `M${pts[0].x},${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[Math.max(0, i - 1)];
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const p3 = pts[Math.min(pts.length - 1, i + 2)];
+        const cp1x = (p1.x + (p2.x - p0.x) / 6).toFixed(1);
+        const cp1y = (p1.y + (p2.y - p0.y) / 6).toFixed(1);
+        const cp2x = (p2.x - (p3.x - p1.x) / 6).toFixed(1);
+        const cp2y = (p2.y - (p3.y - p1.y) / 6).toFixed(1);
+        d += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+    }
+    return d;
+}
+
+function _buildGraphSvg({ series, xLabels, showScores = false, h = 80 }) {
+    const id = ++_graphIdCounter;
+    const W = 500, H = h;
+    const ML = 30, MR = 12, MT = 14, MB = showScores ? 28 : 22;
+    const cW = W - ML - MR, cH = H - MT - MB;
+
+    const RESULT_COLOR = { W: '#4ade80', D: '#fbbf24', L: '#f87171' };
+    const TEAM_COLORS  = ['var(--color-primary)', 'var(--color-secondary)'];
+
+    const gridLines = [
+        { y: 0,      label: 'W' },
+        { y: cH / 2, label: 'D' },
+        { y: cH,     label: 'L' },
+    ].map(g => `
+        <line x1="${ML}" y1="${MT + g.y}" x2="${W - MR}" y2="${MT + g.y}"
+              stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="3,5"/>
+        <text x="${ML - 7}" y="${MT + g.y + 4}" text-anchor="end"
+              fill="rgba(255,255,255,0.35)" font-size="9" font-family="IBM Plex Mono,monospace">${g.label}</text>
+    `).join('');
+
+    const step = xLabels.length > 20 ? 5 : xLabels.length > 10 ? 2 : 1;
+    const xAxisLabels = xLabels.map((label, i) => {
+        if (i % step !== 0 && i !== xLabels.length - 1) return '';
+        const x = xLabels.length === 1 ? ML + cW / 2 : ML + i * cW / (xLabels.length - 1);
+        return `<text x="${x}" y="${H - 5}" text-anchor="middle"
+                    fill="rgba(255,255,255,0.28)" font-size="8" font-family="IBM Plex Mono,monospace">${label}</text>`;
+    }).join('');
+
+    const defs = series.map((s, si) => `
+        <filter id="g${id}w${si}" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>`
+    ).join('');
+
+    const seriesSvg = series.map((s, si) => {
+        if (!s.points.length) return '';
+        const color = TEAM_COLORS[si];
+        const abs = s.points.map(p => ({ ...p, x: ML + p.x, y: MT + p.y }));
+        const linePath = _smoothCurvePath(abs);
+        const dots = abs.map((p, pi) => {
+            const dc = RESULT_COLOR[s.points[pi].result] || color;
+            const scoreLabel = s.points[pi].score
+                ? `<text x="${p.x}" y="${p.y - 7}" text-anchor="middle"
+                         fill="rgba(255,255,255,0.5)" font-size="7" font-family="IBM Plex Mono,monospace">${s.points[pi].score}</text>`
+                : '';
+            return `${scoreLabel}<circle cx="${p.x}" cy="${p.y}" r="2.5"
+                        fill="${dc}" stroke="${color}" stroke-width="1"
+                        filter="url(#g${id}w${si})"/>`;
+        }).join('');
+        return `
+            <path d="${linePath}" fill="none" stroke="${color}" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round" filter="url(#g${id}w${si})"/>
+            ${dots}`;
+    }).join('');
+
+    return `<svg viewBox="0 0 ${W} ${H}" class="form-graph-svg">
+        <defs>${defs}</defs>
+        ${gridLines}
+        ${xAxisLabels}
+        ${seriesSvg}
+    </svg>`;
+}
+
+function buildH2HGraphSvg(games, homeTeamId) {
+    if (!games.length) return '';
+    const cH = 120 - 16 - 32; // H - MT - MB (showScores=true)
+    const cW = 500 - 30 - 12;
+    const yOf = r => r === 'W' ? 0 : r === 'D' ? cH / 2 : cH;
+    const xOf = i => games.length === 1 ? cW / 2 : i * cW / (games.length - 1);
+
+    const homePts = [], awayPts = [];
+    games.forEach((g, i) => {
+        const hg = g.homeGoals ?? g.HomeGoals ?? 0;
+        const og = g.outGoals  ?? g.OutGoals  ?? 0;
+        const isHome   = (g.teamIdHome ?? g.TeamIdHome) === homeTeamId;
+        const homeRes  = hg === og ? 'D' : hg > og ? 'W' : 'L';
+        const awayRes  = hg === og ? 'D' : hg < og ? 'W' : 'L';
+        const score    = isHome ? `${hg}-${og}` : `${og}-${hg}`;
+        homePts.push({ x: xOf(i), y: yOf(isHome ? homeRes : awayRes), result: isHome ? homeRes : awayRes, score });
+        awayPts.push({ x: xOf(i), y: yOf(isHome ? awayRes : homeRes), result: isHome ? awayRes : homeRes });
+    });
+
+    const xLabels = games.map(g => `R${g.round ?? g.Round ?? ''}`);
+    return _buildGraphSvg({ series: [{ points: homePts }, { points: awayPts }], xLabels, showScores: true, h: 100 });
+}
+
+function buildFormGraphSvg(homeForm, awayForm) {
+    const allRounds = [...new Set([...homeForm.map(f => f.round), ...awayForm.map(f => f.round)])].sort((a, b) => a - b);
+    if (!allRounds.length) return '';
+    const cH = 80 - 14 - 22;
+    const cW = 500 - 30 - 12;
+    const yOf = r => r === 'W' ? 0 : r === 'D' ? cH / 2 : cH;
+    const xOf = i => allRounds.length === 1 ? cW / 2 : i * cW / (allRounds.length - 1);
+
+    const teamPts = form => allRounds.map((r, i) => {
+        const e = form.find(f => f.round === r);
+        return e ? { x: xOf(i), y: yOf(e.result), result: e.result } : null;
+    }).filter(Boolean);
+
+    return _buildGraphSvg({
+        series: [{ points: teamPts(homeForm) }, { points: teamPts(awayForm) }],
+        xLabels: allRounds.map(String),
+    });
+}
+
+function renderInspectionPanel(game, actualResult, hasScore, approaches, predictions, containerId = 'inspectionContainer', homeForm = [], awayForm = [], h2hGames = [], homePos = null, awayPos = null) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
@@ -2075,20 +2242,45 @@ function renderInspectionPanel(game, actualResult, hasScore, approaches, predict
         metaHtml = `<span class="inspection-accuracy inspection-not-finished">GAME NOT FINISHED — PREDICTIONS ONLY</span>`;
     }
 
+    const graphSvg = buildFormGraphSvg(homeForm, awayForm);
+    const graphHtml = graphSvg ? `
+    <div class="form-graph-container">
+        <div class="form-graph-legend">
+            <span class="form-graph-legend-home">${game.homeTeamName.toUpperCase()}</span>
+            <span class="form-graph-legend-away">${game.awayTeamName.toUpperCase()}</span>
+        </div>
+        ${graphSvg}
+    </div>` : '';
+
+    const h2hSvg = buildH2HGraphSvg(h2hGames, game.teamIdHome);
+    const h2hHtml = h2hSvg ? `
+    <div class="form-graph-container form-graph-container--h2h">
+        <div class="form-graph-label">HEAD TO HEAD</div>
+        <div class="form-graph-legend">
+            <span class="form-graph-legend-home">${game.homeTeamName.toUpperCase()}</span>
+            <span class="form-graph-legend-away">${game.awayTeamName.toUpperCase()}</span>
+        </div>
+        ${h2hSvg}
+    </div>` : '';
+
     let html = `
+    <div class="inspection-title">INSPECTION</div>
+    ${graphHtml}
+    ${h2hHtml}
     <div class="inspection-header">
         <div class="inspection-game">
             <img class="game-team-logo inspection-logo" src="${game.homeTeamLogo}" alt="">
-            <span class="inspection-team-name">${game.homeTeamName.toUpperCase()}</span>
+            <span class="inspection-team-name">${game.homeTeamName.toUpperCase()}${homePos !== null ? ` <span class="inspection-team-pos">(${homePos})</span>` : ''}</span>
             <div class="inspection-score-block">
                 <span class="inspection-score-ft">${ftScore}</span>
                 ${(game.homeHalfTimeScore != null) ? `<span class="inspection-score-ht">(HT: ${htScore})</span>` : ''}
             </div>
-            <span class="inspection-team-name">${game.awayTeamName.toUpperCase()}</span>
+            <span class="inspection-team-name">${game.awayTeamName.toUpperCase()}${awayPos !== null ? ` <span class="inspection-team-pos">(${awayPos})</span>` : ''}</span>
             <img class="game-team-logo inspection-logo" src="${game.awayTeamLogo}" alt="">
         </div>
         <div class="inspection-meta">${metaHtml}</div>
     </div>
+    <div class="inspection-table-wrapper">
     <table class="predict-table inspection-table">
         <thead>
             <tr>
@@ -2102,6 +2294,36 @@ function renderInspectionPanel(game, actualResult, hasScore, approaches, predict
             </tr>
         </thead>
         <tbody>`;
+
+    // Consensus row — only from entries that have a prediction
+    const validEntries = ranked.filter(e => e.pred);
+    if (validEntries.length) {
+        const votes = { '1': 0, 'X': 0, '2': 0 };
+        let sumH = 0, sumD = 0, sumA = 0;
+        validEntries.forEach(({ pred, predicted }) => {
+            votes[predicted] = (votes[predicted] || 0) + 1;
+            sumH += pred.homeWinProbability ?? 0;
+            sumD += pred.drawProbability    ?? 0;
+            sumA += pred.awayWinProbability ?? 0;
+        });
+        const n = validEntries.length;
+        const consensus = Object.entries(votes).sort((a, b) => b[1] - a[1])[0][0];
+        const consCls = consensus === '1' ? 'predict-cell--home' : consensus === 'X' ? 'predict-cell--draw' : 'predict-cell--away';
+        const avgH = (sumH / n * 100).toFixed(1);
+        const avgD = (sumD / n * 100).toFixed(1);
+        const avgA = (sumA / n * 100).toFixed(1);
+        const voteLabel = `${consensus} (${votes[consensus]}/${n})`;
+        html += `
+        <tr class="predict-row inspection-row inspection-row--consensus">
+            <td class="predict-row-num">—</td>
+            <td class="predict-approach-name inspection-consensus-label">CONSENSUS</td>
+            <td class="predict-cell ${consCls}"><span class="predict-outcome">${voteLabel}</span></td>
+            <td class="inspection-prob ${finished && actualResult === '1' ? 'inspection-prob--actual' : ''}">${avgH}%</td>
+            <td class="inspection-prob ${finished && actualResult === 'X' ? 'inspection-prob--actual' : ''}">${avgD}%</td>
+            <td class="inspection-prob ${finished && actualResult === '2' ? 'inspection-prob--actual' : ''}">${avgA}%</td>
+            ${finished ? `<td class="inspection-match ${consensus === actualResult ? 'inspection-match--correct' : 'inspection-match--wrong'}">${consensus === actualResult ? '✓' : '✗'}</td>` : ''}
+        </tr>`;
+    }
 
     ranked.forEach((entry, i) => {
         const { approach, pred, predicted, correct } = entry;
@@ -2130,7 +2352,7 @@ function renderInspectionPanel(game, actualResult, hasScore, approaches, predict
         </tr>`;
     });
 
-    html += `</tbody></table>`;
+    html += `</tbody></table></div>`;
     container.innerHTML = html;
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2152,7 +2374,6 @@ function renderMatchesPanel() {
 
     if (!selectedGames.length) {
         container.innerHTML = '<div class="football-placeholder">NO GAMES SELECTED</div>';
-        updateFindSimilarBtn();
         return;
     }
 
@@ -2175,14 +2396,6 @@ function renderMatchesPanel() {
         const tr = document.createElement('tr');
         tr.className = 'game-row';
 
-        // Re-apply focus highlight if this game was previously selected
-        if (matchesSelectedGame &&
-            matchesSelectedGame.seasonId   === game.seasonId &&
-            matchesSelectedGame.teamHomeId === game.teamHomeId &&
-            matchesSelectedGame.teamOutId  === game.teamOutId) {
-            tr.classList.add('match-focus');
-        }
-
         tr.innerHTML = `
             <td class="game-id-cell">${game.gameId ?? ''}</td>
             <td><img class="game-team-logo" src="${game.homeTeamLogo}" alt=""></td>
@@ -2199,18 +2412,8 @@ function renderMatchesPanel() {
 
         tr.addEventListener('click', e => {
             if (e.target.closest('.match-remove-btn')) return;
-            const isFocused = matchesSelectedGame &&
-                matchesSelectedGame.seasonId   === game.seasonId &&
-                matchesSelectedGame.teamHomeId === game.teamHomeId &&
-                matchesSelectedGame.teamOutId  === game.teamOutId;
-            tbody.querySelectorAll('.game-row').forEach(r => r.classList.remove('match-focus'));
-            if (isFocused) {
-                matchesSelectedGame = null;
-            } else {
-                matchesSelectedGame = game;
-                tr.classList.add('match-focus');
-            }
-            updateFindSimilarBtn();
+            const g = { ...game, teamIdHome: game.teamHomeId, teamIdOut: game.teamOutId };
+            openInspection(g, game.seasonId);
         });
 
         tbody.appendChild(tr);
@@ -2218,22 +2421,9 @@ function renderMatchesPanel() {
 
     container.innerHTML = '';
     container.appendChild(table);
-    updateFindSimilarBtn();
-}
-
-function updateFindSimilarBtn() {
-    const btn = document.getElementById('findSimilarBtn');
-    if (btn) btn.disabled = !matchesSelectedGame;
 }
 
 function removeSelectedGame(idx) {
-    const removed = selectedGames[idx];
-    if (matchesSelectedGame &&
-        matchesSelectedGame.seasonId   === removed.seasonId &&
-        matchesSelectedGame.teamHomeId === removed.teamHomeId &&
-        matchesSelectedGame.teamOutId  === removed.teamOutId) {
-        matchesSelectedGame = null;
-    }
     selectedGames.splice(idx, 1);
     renderMatchesPanel();
     updateMatchesBadge();
@@ -2295,25 +2485,23 @@ async function getExportStartIn() {
 
 
 async function loadWinner16Ids() {
-    const select = document.getElementById('winner16IdInput');
-    if (!select) return;
+    const datalist = document.getElementById('winner16IdList');
+    if (!datalist) return;
     try {
         const res = await apiFetch(`${getApiBase()}/api/prediction/games/winner16-ids`, {
             headers: { 'accept': 'application/json' },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const ids = await res.json();
-        const current = select.value;
-        select.innerHTML = '<option value="">-- WINNER16 ID --</option>';
-        (Array.isArray(ids) ? ids : []).forEach(id => {
+        const list = Array.isArray(ids) ? ids : [];
+        datalist.innerHTML = '';
+        list.forEach(id => {
             const opt = document.createElement('option');
             opt.value = id;
-            opt.textContent = id;
-            select.appendChild(opt);
+            datalist.appendChild(opt);
         });
-        if (current && [...select.options].some(o => o.value === current)) {
-            select.value = current;
-        }
+        const input = document.getElementById('winner16IdInput');
+        if (input && !input.value && list.length) input.value = list[0];
     } catch (err) {
         console.warn('[loadWinner16Ids] failed:', err);
     }
@@ -2369,7 +2557,9 @@ async function loadMatchesFromDb() {
         const groupKeys = [...new Set(games.map(g => `${g.seasonId ?? g.SeasonId}_${g.round ?? g.Round}`))];
         const footballGamesCache = {};
         await Promise.all(groupKeys.map(async key => {
-            const [seasonId, round] = key.split('_');
+            const sep = key.indexOf('_');
+            const seasonId = key.slice(0, sep);
+            const round = key.slice(sep + 1);
             try {
                 const r = await apiFetch(`${getApiBase()}/api/Football/seasons/${seasonId}/rounds/${round}/games`, {
                     headers: { 'accept': '*/*' }
@@ -2402,7 +2592,6 @@ async function loadMatchesFromDb() {
             };
         });
         selectedGames.sort((a, b) => (a.gameId ?? 0) - (b.gameId ?? 0));
-        matchesSelectedGame = null;
         renderMatchesPanel();
         updateMatchesBadge();
         showSuccess(`LOADED ${games.length} MATCH${games.length !== 1 ? 'ES' : ''} FROM DB`);
@@ -2412,40 +2601,6 @@ async function loadMatchesFromDb() {
 }
 
 // ── Similar Games ─────────────────────────────────────────────────────────────
-async function findSimilarGames() {
-    if (!matchesSelectedGame) {
-        showError('SELECT A GAME FIRST');
-        return;
-    }
-    const game = matchesSelectedGame;
-    const btn = document.getElementById('findSimilarBtn');
-    if (btn) { btn.textContent = '[ LOADING... ]'; btn.disabled = true; }
-
-    try {
-        const params = new URLSearchParams({
-            seasonId:   game.seasonId,
-            round:      game.round,
-            homeTeamId: game.teamHomeId,
-            awayTeamId: game.teamOutId,
-            threshold:  10
-        });
-        const res = await apiFetch(`${getApiBase()}/api/Prediction/similar-games?${params}`, {
-            headers: { 'accept': '*/*' }
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const similarGames = await res.json();
-
-        renderSimilarPanel(game, similarGames);
-        const tabBtn = document.getElementById('tabBtnSimilar');
-        if (tabBtn) tabBtn.style.display = '';
-        switchFootballTab('similar');
-    } catch (err) {
-        showError('SIMILAR GAMES FETCH FAILED');
-        console.error(err);
-    } finally {
-        if (btn) { btn.textContent = '[ FIND SIMILAR ]'; btn.disabled = !matchesSelectedGame; }
-    }
-}
 
 function renderSimilarPanel(game, similarGames) {
     const container = document.getElementById('similarContainer');
@@ -2600,7 +2755,6 @@ async function loadGames(seasonId, round) {
                         round:             game.round
                     });
                     tr.classList.add('selected');
-                    openInspection(game, seasonId);
                 }
 
                 updateMatchesBadge();
