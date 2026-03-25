@@ -328,7 +328,7 @@
 
             <!-- Simulations Panel -->
             <div class="football-panel" id="simulationsPanel" style="display: none;">
-                <div class="football-sidebar">
+                <div class="football-sidebar sim-sidebar">
                     <div class="football-sidebar-header">// SIMULATIONS</div>
                     <div class="football-dropdown">
                         <div class="football-dropdown-header">
@@ -350,17 +350,89 @@
                             <option value="">-- Select League --</option>
                         </select>
                     </div>
-                    <div class="football-dropdown">
-                        <label class="football-dropdown-label" for="simSeasonSelect">SEASONS</label>
-                        <select class="football-select" id="simSeasonSelect" disabled>
-                            <option value="">-- Select Season --</option>
-                        </select>
+                    <div class="football-dropdown sim-seasons-section">
+                        <div class="football-dropdown-header">
+                            <label class="football-dropdown-label">SEASONS</label>
+                            <div class="sim-batch-col-actions">
+                                <button class="sim-batch-action-btn" id="simSeasonAllBtn" onclick="setSimSeasonAll(true)" disabled>ALL</button>
+                                <button class="sim-batch-action-btn" id="simSeasonNoneBtn" onclick="setSimSeasonAll(false)" disabled>NONE</button>
+                            </div>
+                        </div>
+                        <div class="sim-season-list sim-batch-list" id="simSeasonList">
+                            <div class="sim-batch-placeholder">SELECT A LEAGUE FIRST</div>
+                        </div>
+                    </div>
+                    <div class="sim-sidebar-actions">
+                        <button class="toolbar-btn sim-run-all-btn sim-sidebar-run-btn" id="simRunBtn" onclick="runSimulationBatch()" disabled>[ RUN SIMULATION ]</button>
                     </div>
                 </div>
                 <div class="football-resizer" id="simResizer"></div>
                 <div class="football-area">
-                    <div class="football-content" id="simulationsContent">
-                        <div class="football-placeholder">SELECT A COUNTRY TO BEGIN</div>
+                    <!-- Top summary progress bars (always visible) -->
+                    <div class="sim-top-bars">
+                        <div class="sim-top-bar-item">
+                            <div class="sim-top-bar-header">
+                                <span class="sim-top-bar-label">SEASONS</span>
+                                <span class="sim-top-bar-value" id="simTopValSeasons">0 / 0</span>
+                            </div>
+                            <div class="sim-progress-track"><div class="sim-progress-fill" id="simTopFillSeasons"></div></div>
+                        </div>
+                        <div class="sim-top-bar-item">
+                            <div class="sim-top-bar-header">
+                                <span class="sim-top-bar-label">ROUNDS</span>
+                                <span class="sim-top-bar-value" id="simTopValRounds">0 / 0</span>
+                            </div>
+                            <div class="sim-progress-track"><div class="sim-progress-fill" id="simTopFillRounds"></div></div>
+                        </div>
+                        <div class="sim-top-bar-item">
+                            <div class="sim-top-bar-header">
+                                <span class="sim-top-bar-label">GAMES</span>
+                                <span class="sim-top-bar-value" id="simTopValGames">0 / 0</span>
+                            </div>
+                            <div class="sim-progress-track"><div class="sim-progress-fill sim-progress-fill--accent" id="simTopFillGames"></div></div>
+                        </div>
+                        <div class="sim-top-bar-item">
+                            <div class="sim-top-bar-header">
+                                <span class="sim-top-bar-label">APPROACHES</span>
+                                <span class="sim-top-bar-value" id="simTopValApproaches">0 / 0</span>
+                            </div>
+                            <div class="sim-progress-track"><div class="sim-progress-fill sim-progress-fill--secondary" id="simTopFillApproaches"></div></div>
+                        </div>
+                    </div>
+                    <!-- Progress pane (visible during / after run) -->
+                    <div class="sim-all-progress" id="simAllProgress" style="display:none">
+                        <div class="sim-all-header">
+                            <span class="sim-all-title" id="simAllTitle">BATCH STATUS</span>
+                            <button class="sim-cancel-btn" id="simCancelBtn" style="display:none" onclick="cancelSimulationBatch()">[ CANCEL ]</button>
+                        </div>
+                        <div class="sim-all-rows">
+                            <div class="sim-all-row">
+                                <span class="sim-all-row-label">SEASON</span>
+                                <div class="sim-progress-track"><div class="sim-progress-fill" id="simFillSeason"></div></div>
+                                <span class="sim-all-row-info" id="simInfoSeason">—</span>
+                            </div>
+                            <div class="sim-all-row">
+                                <span class="sim-all-row-label">ROUND</span>
+                                <div class="sim-progress-track"><div class="sim-progress-fill" id="simFillRound"></div></div>
+                                <span class="sim-all-row-info" id="simInfoRound">—</span>
+                            </div>
+                            <div class="sim-all-row">
+                                <span class="sim-all-row-label">APPROACH</span>
+                                <div class="sim-progress-track"><div class="sim-progress-fill sim-progress-fill--accent" id="simFillApproach"></div></div>
+                                <span class="sim-all-row-info" id="simInfoApproach">—</span>
+                            </div>
+                            <div class="sim-all-row sim-all-row--total">
+                                <span class="sim-all-row-label">TOTAL</span>
+                                <div class="sim-progress-track"><div class="sim-progress-fill" id="simFillTotal"></div></div>
+                                <span class="sim-all-row-info" id="simInfoTotal">—</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Results table (always visible, centered card) -->
+                    <div class="sim-results-center">
+                        <div class="sim-results-card" id="simulationsContent">
+                            <div class="football-placeholder">LOADING SIMULATION DATA...</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -380,7 +452,7 @@
                             <div class="settings-row">
                                 <div class="settings-info">
                                     <span class="settings-label">LOCAL SERVER</span>
-                                    <span class="settings-desc">Use local endpoint (localhost:12802) instead of access server (localhost:12410)</span>
+                                    <span class="settings-desc">Use local endpoint (localhost:12410) instead of remote server (football-api.yosephhome.com)</span>
                                 </div>
                                 <label class="toggle-switch">
                                     <input type="checkbox" id="localServerToggle">
