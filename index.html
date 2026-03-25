@@ -404,6 +404,7 @@
                         <div class="sim-all-header">
                             <span class="sim-all-title" id="simAllTitle">BATCH STATUS</span>
                             <button class="sim-cancel-btn" id="simCancelBtn" style="display:none" onclick="cancelSimulationBatch()">[ CANCEL ]</button>
+                            <button class="sim-cancel-btn sim-clear-btn" id="simProgressClearBtn" onclick="clearSimulationProgress()">[ CLEAR ]</button>
                         </div>
                         <div class="sim-all-rows">
                             <div class="sim-all-row">
@@ -430,6 +431,9 @@
                     </div>
                     <!-- Results table (always visible, centered card) -->
                     <div class="sim-results-center">
+                        <div class="sim-results-header">
+                            <button class="sim-cancel-btn sim-clear-btn" onclick="clearSimulationResults()">[ CLEAR ]</button>
+                        </div>
                         <div class="sim-results-card" id="simulationsContent">
                             <div class="football-placeholder">LOADING SIMULATION DATA...</div>
                         </div>

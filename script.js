@@ -4,8 +4,10 @@ const welcomeMessage = "> SECURE TERMINAL v3.14.159 // Enter credentials to proc
 const LOCAL_API_BASE  = 'http://localhost:12410';
 const ACCESS_API_BASE = 'https://football-api.yosephhome.com';
 
-// Reset to remote server on every page load; user can switch to local via Settings
-localStorage.setItem('useLocalServer', 'false');
+// Default to local server; user can switch via Settings
+if (localStorage.getItem('useLocalServer') === null) {
+    localStorage.setItem('useLocalServer', 'true');
+}
 
 function getApiBase() {
     return localStorage.getItem('useLocalServer') === 'true' ? LOCAL_API_BASE : ACCESS_API_BASE;
@@ -586,7 +588,8 @@ function showSimulationsPanel() {
     document.getElementById('simulationsPanel').style.display = 'flex';
     loadSimCountries();
     initSimTopBars();
-    loadSimTable();
+    const simContent = document.getElementById('simulationsContent');
+    if (simContent) simContent.innerHTML = '<div class="football-placeholder">SELECT AN APPROACH TO BEGIN SIMULATION</div>';
 }
 
 function hideSimulationsPanel() {
@@ -851,7 +854,6 @@ document.addEventListener('DOMContentLoaded', () => {
         switchFootballTab('simResults');
         populateSimResultsApproachSelect();
     });
-    document.getElementById('simRunBtn')?.addEventListener('click', runSimulation);
     document.getElementById('simSaveBtn')?.addEventListener('click', saveSimulationResults);
     document.getElementById('simRunAllBtn')?.addEventListener('click', runAllApproaches);
     document.getElementById('simCancelBtn')?.addEventListener('click', () => { runAllCancelled = true; });
@@ -1831,7 +1833,6 @@ async function populateSimSeasonList(leagueId) {
                 console.error('Failed to load seasons after retries:', err);
                 list.innerHTML = '<div class="sim-batch-placeholder">ERROR LOADING SEASONS</div>';
                 showError('Failed to load seasons');
-                loadSimTable();
                 return;
             }
         }
@@ -1841,7 +1842,6 @@ async function populateSimSeasonList(leagueId) {
     const ended = simSeasons.filter(s => !s.isActive);
     if (!ended.length) {
         list.innerHTML = '<div class="sim-batch-placeholder">NO ENDED SEASONS FOUND</div>';
-        loadSimTable();
         return;
     }
 
@@ -1866,7 +1866,6 @@ async function populateSimSeasonList(leagueId) {
 
     list.addEventListener('change', () => updateSimTopBars());
     updateSimTopBars();
-    loadSimTable();
 }
 
 function setSimSeasonAll(checked) {
@@ -1916,11 +1915,14 @@ async function loadSimTable() {
     if (!container) return;
     container.innerHTML = '<div class="football-placeholder">LOADING...</div>';
     try {
-        await loadPredictionApproaches();
+        const approaches = await loadPredictionApproaches();
+        if (!approaches.length) {
+            renderSimTable(container, []);
+            return;
+        }
         const res = await apiFetch(`${getApiBase()}/api/Prediction/simulation`, { headers: { 'accept': '*/*' } });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        renderSimTable(container, data);
+        const results = res.ok ? await res.json() : [];
+        renderSimTable(container, results);
     } catch (err) {
         container.innerHTML = '<div class="football-placeholder">ERROR LOADING DATA</div>';
         console.error('[SIM-TABLE]', err);
@@ -2944,6 +2946,24 @@ function clearStandings() {
     if (tbody) tbody.innerHTML = '';
 }
 
+function clearSimulationProgress() {
+    const progressEl = document.getElementById('simAllProgress');
+    if (progressEl) progressEl.style.display = 'none';
+    ['simFillSeason','simFillRound','simFillApproach','simFillTotal'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.width = '0%';
+    });
+    ['simInfoSeason','simInfoRound','simInfoApproach','simInfoTotal'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '—';
+    });
+}
+
+function clearSimulationResults() {
+    const content = document.getElementById('simulationsContent');
+    if (content) content.innerHTML = '<div class="football-placeholder">SELECT AN APPROACH TO BEGIN SIMULATION</div>';
+}
+
 function clearSimulationPage() {
     const simContainer = document.getElementById('simulationContainer');
     if (simContainer) simContainer.innerHTML = '<div class="football-placeholder">SELECT AN APPROACH TO BEGIN SIMULATION</div>';
@@ -3031,7 +3051,8 @@ async function runSimulationBatch() {
     if (runBtn)    { runBtn.textContent = '[ RUNNING... ]'; runBtn.disabled = true; }
     if (progressEl)  progressEl.style.display = '';
     if (cancelBtn)   cancelBtn.style.display = '';
-    if (content)     content.innerHTML = '';
+    if (content)     content.innerHTML = '<div class="football-placeholder">SIMULATION RUNNING...</div>';
+    const simRunResults = [];
     [fillSeason, fillRound, fillApproach, fillTotal].forEach(f => setFill(f, 0));
     [infoSeason, infoRound, infoApproach, infoTotal].forEach(i => setInfo(i, '—'));
     if (titleEl) titleEl.textContent = 'LOADING APPROACHES...';
@@ -3039,6 +3060,7 @@ async function runSimulationBatch() {
     const ASSUMED_MAX_ROUNDS = 38;
     let roundsSaved = 0;
     let saveErrors  = 0;
+    let fetchErrors = 0;
     let totalGamesProcessed = 0;
     let totalGamesEstimated = 0;
 
@@ -3073,15 +3095,23 @@ async function runSimulationBatch() {
                     setFill(fillRound, Math.min((round / ASSUMED_MAX_ROUNDS) * 100, 95));
                     setInfo(infoRound, `ROUND ${round}`);
                     setFill(fillTotal, (roundsSaved / Math.max(1, totalSeasons * totalApproach * ASSUMED_MAX_ROUNDS)) * 100);
-                    setInfo(infoTotal, `${roundsSaved} SAVED${saveErrors ? ` · ${saveErrors} ERR` : ''}`);
+                    setInfo(infoTotal, `${roundsSaved} SAVED${fetchErrors ? ` · ${fetchErrors} FETCH ERR` : ''}${saveErrors ? ` · ${saveErrors} SAVE ERR` : ''}`);
                     updateSimTopBars({ seasons: { current: si + 1, total: totalSeasons }, approaches: { current: ai + 1, total: totalApproach }, rounds: { current: round, total: ASSUMED_MAX_ROUNDS }, games: { current: totalGamesProcessed, total: totalGamesEstimated } });
 
-                    const res = await fetch(
-                        `${getApiBase()}/api/Football/seasons/${season.id}/rounds/${round}/games`,
-                        { headers: { 'accept': '*/*' } }
-                    );
-                    if (!res.ok) break;
-                    const games = await res.json();
+                    let games;
+                    try {
+                        const res = await apiFetch(
+                            `${getApiBase()}/api/Football/seasons/${season.id}/rounds/${round}/games`,
+                            { headers: { 'accept': '*/*' } }
+                        );
+                        if (!res.ok) break;
+                        games = await res.json();
+                    } catch (fetchErr) {
+                        fetchErrors++;
+                        console.warn(`[SIM-BATCH] Games fetch failed — season=${season.id} round=${round}`, fetchErr);
+                        setInfo(infoTotal, `${roundsSaved} SAVED · ${fetchErrors} FETCH ERR${saveErrors ? ` · ${saveErrors} SAVE ERR` : ''}`);
+                        break;
+                    }
                     if (!games.length) break;
 
                     const gameResults = await Promise.all(games.map(async game => {
@@ -3089,7 +3119,7 @@ async function runSimulationBatch() {
                         if (hs == null || as_ == null) return null;
                         const actual = hs > as_ ? '1' : hs < as_ ? '2' : 'X';
                         try {
-                            const predRes = await fetch(
+                            const predRes = await apiFetch(
                                 `${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamIdHome}&awayTeamId=${game.teamIdOut}&seasonId=${season.id}&round=${round}&approach=${approach.index}`,
                                 { headers: { 'accept': '*/*' } }
                             );
@@ -3109,11 +3139,12 @@ async function runSimulationBatch() {
                     const score      = successful > 0 ? correct / successful : 0;
 
                     try {
-                        const saveRes = await fetch(
+                        const saveRes = await apiFetch(
                             `${getApiBase()}/api/Prediction/simulation?seasonId=${season.id}&round=${round}&approach=${approach.index}&score=${score}`,
                             { method: 'POST', headers: { 'accept': '*/*' } }
                         );
                         if (!saveRes.ok && saveRes.status !== 409) throw new Error(`HTTP ${saveRes.status}`);
+                        simRunResults.push({ seasonId: season.id, round, approach: approach.index, score });
                         roundsSaved++;
                     } catch (err) {
                         console.warn(`[SIM-BATCH] Save failed — season=${season.id} round=${round} approach=${approach.index}`, err);
@@ -3138,19 +3169,20 @@ async function runSimulationBatch() {
         }
 
         [fillSeason, fillRound, fillApproach, fillTotal].forEach(f => setFill(f, 100));
-        setInfo(infoTotal, `${roundsSaved} SAVED${saveErrors ? ` · ${saveErrors} ERR` : ''}`);
+        setInfo(infoTotal, `${roundsSaved} SAVED${fetchErrors ? ` · ${fetchErrors} FETCH ERR` : ''}${saveErrors ? ` · ${saveErrors} SAVE ERR` : ''}`);
         if (titleEl) titleEl.textContent = `COMPLETE — ${totalSeasons} SEASONS · ${approaches.length} APPROACHES`;
         updateSimTopBars({ seasons: { current: totalSeasons, total: totalSeasons }, approaches: { current: approaches.length, total: approaches.length }, rounds: { current: ASSUMED_MAX_ROUNDS, total: ASSUMED_MAX_ROUNDS }, games: { current: totalGamesProcessed, total: totalGamesProcessed } });
         if (cancelBtn) cancelBtn.style.display = 'none';
         showSuccess('SIMULATION COMPLETE');
-        loadSimTable();
+        renderSimTable(content, simRunResults);
 
     } catch (err) {
         if (cancelBtn) cancelBtn.style.display = 'none';
         if (titleEl) titleEl.textContent = 'ERROR';
-        if (content) content.innerHTML = '<div class="football-placeholder">SIMULATION ERROR</div>';
-        showError('SIMULATION FAILED');
+        const msg = err?.message ? `: ${err.message}` : '';
+        showError(`SIMULATION FAILED${msg}`);
         console.error(err);
+        renderSimTable(content, simRunResults);
     } finally {
         if (runBtn) { runBtn.textContent = '[ RUN SIMULATION ]'; runBtn.disabled = false; }
     }
