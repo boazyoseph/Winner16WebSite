@@ -1,5 +1,12 @@
 const welcomeMessage = "> SECURE TERMINAL v3.14.159 // Enter credentials to proceed...";
 
+// ── Console logging ────────────────────────────────────────────────────────────
+function log(tag, msg, ...data) {
+    const ts = new Date().toISOString().slice(11, 23); // HH:MM:SS.mmm
+    if (data.length) console.log(`[${ts}] [${tag}] ${msg}`, ...data);
+    else              console.log(`[${ts}] [${tag}] ${msg}`);
+}
+
 // ── Server endpoint configuration ─────────────────────────────────────────────
 const LOCAL_API_BASE  = 'http://localhost:12410';
 const ACCESS_API_BASE = 'https://football-api.yosephhome.com';
@@ -20,6 +27,7 @@ function isTokenExpired() {
 }
 
 function handleUnauthorized() {
+    log('AUTH', 'Session unauthorized — clearing token and returning to login');
     localStorage.removeItem('authToken');
     localStorage.removeItem('authTokenExpiry');
     document.querySelector('.container')?.classList.remove('expanded');
@@ -38,7 +46,13 @@ async function apiFetch(url, options = {}) {
     const token = localStorage.getItem('authToken');
     const headers = { ...(options.headers || {}) };
     if (token) headers['Authorization'] = 'Bearer ' + token;
+    const isPing = url.includes('/api/Ping');
+    const method = (options.method || 'GET').toUpperCase();
+    if (!isPing) log('API', `→ ${method} ${url}`, ...(options.body ? [JSON.parse(options.body)] : []));
+    const t0 = performance.now();
     const res = await fetch(url, { ...options, headers });
+    const ms = Math.round(performance.now() - t0);
+    if (!isPing) log('API', `← ${res.status} ${method} ${url} (${ms}ms)`);
     if (res.status === 401) { handleUnauthorized(); throw new Error('UNAUTHORIZED'); }
     return res;
 }
@@ -183,11 +197,14 @@ function handleLogin() {
         return;
     }
 
+    log('AUTH', `Login attempt: user=${username}`);
     // Add loading state
     document.body.classList.add('loading');
     loginBtn.textContent = 'ACCESSING...';
 
     // Call .NET backend API
+    const loginT0 = performance.now();
+    log('API', `→ POST ${getApiBase()}/api/Login`);
     fetch(getApiBase() + '/api/Login', {
         method: 'POST',
         headers: {
@@ -218,7 +235,8 @@ function handleLogin() {
         document.body.classList.remove('loading');
         loginBtn.textContent = 'INITIALIZE';
 
-        console.log('Login successful:', data);
+        log('API', `← 200 POST /api/Login (${Math.round(performance.now() - loginT0)}ms)`);
+        log('AUTH', `Login successful: user=${username}`);
 
         // Store token
         if (data.token) {
@@ -254,7 +272,7 @@ function handleLogin() {
     .catch(error => {
         document.body.classList.remove('loading');
         loginBtn.textContent = 'INITIALIZE';
-        console.error('Login error:', error);
+        log('AUTH', `Login failed: ${error.message}`);
 
         // Show specific error messages based on error type
         if (error.message === 'INVALID_CREDENTIALS') {
@@ -279,12 +297,12 @@ socialButtons.forEach(btn => {
 });
 
 function handleSocialLogin(provider) {
-    console.log(`Social login attempt: ${provider}`);
+    log('AUTH', `Social login attempt: provider=${provider}`);
     showSuccess(`Connecting to ${provider.toUpperCase()}...`);
 
     // In a real app, this would redirect to OAuth flow
     setTimeout(() => {
-        console.log(`${provider} authentication flow would start here`);
+        log('AUTH', `${provider} authentication flow would start here`);
     }, 1000);
 }
 
@@ -401,7 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (helpBtn) {
         helpBtn.addEventListener('click', () => {
-            console.log('Help clicked');
+            log('UI', 'Help modal opened');
             document.getElementById('helpModal').style.display = 'flex';
         });
     }
@@ -515,7 +533,7 @@ function handleRegistration(e) {
         registerBtn.textContent = 'CREATE ACCOUNT';
         registerBtn.disabled = false;
 
-        console.log('Registration successful:', data);
+        log('AUTH', 'Registration successful');
         showSuccess('Account created successfully! Please login.');
 
         // Close modal and reset form
@@ -528,7 +546,7 @@ function handleRegistration(e) {
         registerBtn.textContent = 'CREATE ACCOUNT';
         registerBtn.disabled = false;
 
-        console.error('Registration error:', error);
+        log('AUTH', 'Registration error:', error);
 
         if (error.message === 'USER_EXISTS') {
             showError('Username or email already exists');
@@ -557,6 +575,7 @@ setInterval(() => {
 
 // ── Panel management ──────────────────────────────────────────────────────────
 function showGamesPanel() {
+    log('NAV', 'Open panel: GAMES');
     hideSettingsPanel();
     hideFootballPanel();
     hideSimulationsPanel();
@@ -570,6 +589,7 @@ function hideGamesPanel() {
 }
 
 function showFootballPanel() {
+    log('NAV', 'Open panel: FOOTBALL');
     hideGamesPanel();
     hideSettingsPanel();
     hideSimulationsPanel();
@@ -582,6 +602,7 @@ function hideFootballPanel() {
 }
 
 function showSimulationsPanel() {
+    log('NAV', 'Open panel: SIMULATIONS');
     hideGamesPanel();
     hideFootballPanel();
     hideSettingsPanel();
@@ -597,6 +618,7 @@ function hideSimulationsPanel() {
 }
 
 function showSettingsPanel() {
+    log('NAV', 'Open panel: SETTINGS');
     hideGamesPanel();
     hideFootballPanel();
     hideSimulationsPanel();
@@ -1164,7 +1186,7 @@ async function loadApproachesTab() {
         const approaches = await approachesRes.json();
 
         const scores = scoresRes.ok ? await scoresRes.json().catch(() => []) : [];
-        console.log('[Approaches] simulation/scores status:', scoresRes.status, 'rows:', scores.length, scores);
+        log('APPROACHES', `simulation/scores status=${scoresRes.status} rows=${scores.length}`);
         const scoreMap = {};
         scores.forEach(s => { scoreMap[s.approach] = s; });
         approaches.forEach(a => {
@@ -1329,15 +1351,15 @@ async function predictGames() {
         showError('NO GAMES SELECTED');
         return;
     }
+    log('PREDICT', `Starting prediction for ${selectedGames.length} game(s)`);
     const btn = document.getElementById('predictGamesBtn');
     if (btn) { btn.textContent = '[ LOADING... ]'; btn.disabled = true; }
 
     try {
         const top = parseInt(localStorage.getItem('bestApproachesCount') ?? '5', 10);
-        console.log('[PREDICT] Fetching all approaches for dedup...');
-        // Load all approaches (0 = no limit) so we can skip duplicates and still fill top N
+        log('PREDICT', `Loading approach pool (target top=${top})...`);
         const approachPool = await loadBestPredictionApproaches(0);
-        console.log('[PREDICT] Approach pool:', approachPool.length);
+        log('PREDICT', `Approach pool loaded: ${approachPool.length} approaches`);
 
         const allPredictionsPool = await Promise.all(
             selectedGames.map(game =>
@@ -1347,12 +1369,12 @@ async function predictGames() {
                         try {
                             const r = await apiFetch(url, { headers: { 'accept': '*/*' } });
                             if (!r.ok) {
-                                console.warn(`[PREDICT] HTTP ${r.status} for approach ${approach.index}`);
+                                log('PREDICT', `HTTP ${r.status} for approach ${approach.index} — skipping`);
                                 return null;
                             }
                             return await r.json();
                         } catch (fetchErr) {
-                            console.error(`[PREDICT] Fetch error for approach ${approach.index}:`, fetchErr);
+                            log('PREDICT', `Fetch error for approach ${approach.index}:`, fetchErr);
                             return null;
                         }
                     })
@@ -1378,9 +1400,10 @@ async function predictGames() {
         const approaches = limitedIndices.map(i => approachPool[i]);
         const allPredictions = allPredictionsPool.map(gamePreds => limitedIndices.map(i => gamePreds[i]));
 
-        console.log('[PREDICT] Unique approaches after dedup:', approaches.length);
+        log('PREDICT', `Unique approaches after dedup: ${approaches.length} (pool was ${approachPool.length})`);
         renderPredictPanel(approaches, allPredictions);
         renderTicketPanel(approaches, allPredictions);
+        log('PREDICT', 'Prediction complete — panels rendered');
         const tabBtn = document.getElementById('tabBtnPredict');
         if (tabBtn) tabBtn.style.display = '';
         const tabBtnTicket = document.getElementById('tabBtnTicket');
@@ -1388,7 +1411,7 @@ async function predictGames() {
         switchFootballTab('predict');
     } catch (err) {
         showError('PREDICTION FAILED');
-        console.error('[PREDICT] Caught error:', err);
+        log('PREDICT', 'Prediction failed:', err);
     } finally {
         if (btn) { btn.textContent = '[ PREDICT GAMES ]'; btn.disabled = false; }
     }
@@ -1701,7 +1724,7 @@ async function loadFootballCountries() {
         renderCountryOptions(select);
         countriesLoaded = true;
     } catch (err) {
-        console.error('Failed to load countries:', err);
+        log('FOOTBALL', 'Failed to load countries:', err);
         select.innerHTML = '<option value="">-- ERROR LOADING --</option>';
         showError('Failed to load countries');
     } finally {
@@ -1819,7 +1842,7 @@ async function populateLeagueSelect(countryId) {
         leagueSelect.disabled = false;
         updateLeagueFavBtn(leagueSelect.value);
     } catch (err) {
-        console.error('Failed to load leagues:', err);
+        log('FOOTBALL', 'Failed to load leagues:', err);
         leagueSelect.innerHTML = '<option value="">-- ERROR LOADING --</option>';
         showError('Failed to load leagues');
     }
@@ -1853,7 +1876,7 @@ async function populateSeasonSelect(leagueId) {
         });
         seasonSelect.disabled = false;
     } catch (err) {
-        console.error('Failed to load seasons:', err);
+        log('FOOTBALL', 'Failed to load seasons:', err);
         seasonSelect.innerHTML = '<option value="">-- ERROR LOADING --</option>';
         showError('Failed to load seasons');
     }
@@ -1886,7 +1909,7 @@ async function loadSimCountries() {
                     select.innerHTML = `<option value="">-- RETRYING (${attempt}/${MAX_RETRIES - 1})... --</option>`;
                     await new Promise(r => setTimeout(r, RETRY_DELAY));
                 } else {
-                    console.error('Failed to load countries after retries:', err);
+                    log('SIM', 'Failed to load countries after retries:', err);
                     select.innerHTML = '<option value="">-- ERROR LOADING --</option>';
                     select.disabled = false;
                     showError('Failed to load countries');
@@ -1937,7 +1960,7 @@ async function populateSimLeagueSelect(countryId) {
         leagueSelect.disabled = false;
         updateLeagueFavBtn(leagueSelect.value);
     } catch (err) {
-        console.error('Failed to load leagues:', err);
+        log('FOOTBALL', 'Failed to load leagues:', err);
         leagueSelect.innerHTML = '<option value="">-- ERROR LOADING --</option>';
         showError('Failed to load leagues');
     }
@@ -1976,7 +1999,7 @@ async function populateSimSeasonList(leagueId) {
                 list.innerHTML = `<div class="sim-batch-placeholder">RETRYING (${attempt}/${MAX_RETRIES - 1})...</div>`;
                 await new Promise(r => setTimeout(r, RETRY_DELAY));
             } else {
-                console.error('Failed to load seasons after retries:', err);
+                log('SIM', 'Failed to load seasons after retries:', err);
                 list.innerHTML = '<div class="sim-batch-placeholder">ERROR LOADING SEASONS</div>';
                 showError('Failed to load seasons');
                 return;
@@ -2071,7 +2094,7 @@ async function loadSimTable() {
         renderSimTable(container, results);
     } catch (err) {
         container.innerHTML = '<div class="football-placeholder">ERROR LOADING DATA</div>';
-        console.error('[SIM-TABLE]', err);
+        log('SIM', 'SIM-TABLE error:', err);
     }
 }
 
@@ -2237,6 +2260,7 @@ function switchFootballTab(tabName) {
         simResults:   document.getElementById('tabBtnSimResults'),
     };
 
+    log('NAV', `Switch football tab: ${tabName}`);
     Object.values(panels).forEach(p => { if (p) p.style.display = 'none'; });
     Object.values(tabs).forEach(t => { if (t) t.classList.remove('active'); });
 
@@ -2817,7 +2841,7 @@ async function loadWinner16Ids() {
         const input = document.getElementById('winner16IdInput');
         if (input && !input.value && list.length) input.value = list[0];
     } catch (err) {
-        console.warn('[loadWinner16Ids] failed:', err);
+        log('FOOTBALL', 'loadWinner16Ids failed:', err);
     }
 }
 
@@ -2863,7 +2887,7 @@ async function loadMatchesFromDb() {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        console.log('[loadMatchesFromDb] raw response:', data);
+        log('FOOTBALL', 'loadMatchesFromDb raw response:', data);
         const games = Array.isArray(data) ? data : (data.games ?? data.matches ?? data.data ?? []);
         if (!Array.isArray(games)) throw new Error('Invalid response');
 
@@ -3080,7 +3104,7 @@ async function loadGames(seasonId, round) {
         container.innerHTML = '';
         container.appendChild(table);
     } catch (err) {
-        console.error('Failed to load games:', err);
+        log('FOOTBALL', 'Failed to load games:', err);
         container.innerHTML = '<div style="text-align:center;padding:30px;letter-spacing:2px;color:var(--color-secondary)">ERROR</div>';
         showError('Failed to load games');
     }
@@ -3158,7 +3182,7 @@ async function loadStandings(seasonId) {
             tbody.appendChild(tr);
         });
     } catch (err) {
-        console.error('Failed to load standings:', err);
+        log('FOOTBALL', 'Failed to load standings:', err);
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;letter-spacing:2px;color:var(--color-secondary)">ERROR</td></tr>';
         showError('Failed to load standings');
     }
@@ -3254,7 +3278,7 @@ async function runSimulationBatch() {
                         games = await res.json();
                     } catch (fetchErr) {
                         fetchErrors++;
-                        console.warn(`[SIM-BATCH] Games fetch failed — season=${season.id} round=${round}`, fetchErr);
+                        log('SIM', `SIM-BATCH games fetch failed — season=${season.id} round=${round}`, fetchErr);
                         setInfo(infoTotal, `${roundsSaved} SAVED · ${fetchErrors} FETCH ERR${saveErrors ? ` · ${saveErrors} SAVE ERR` : ''}`);
                         break;
                     }
@@ -3293,7 +3317,7 @@ async function runSimulationBatch() {
                         simRunResults.push({ seasonId: season.id, round, approach: approach.index, score });
                         roundsSaved++;
                     } catch (err) {
-                        console.warn(`[SIM-BATCH] Save failed — season=${season.id} round=${round} approach=${approach.index}`, err);
+                        log('SIM', `SIM-BATCH save failed — season=${season.id} round=${round} approach=${approach.index}`, err);
                         saveErrors++;
                     }
 
@@ -3327,7 +3351,7 @@ async function runSimulationBatch() {
         if (titleEl) titleEl.textContent = 'ERROR';
         const msg = err?.message ? `: ${err.message}` : '';
         showError(`SIMULATION FAILED${msg}`);
-        console.error(err);
+        log('SIM', 'Simulation run failed:', err);
         renderSimTable(content, simRunResults);
     } finally {
         if (runBtn) { runBtn.textContent = '[ RUN SIMULATION ]'; runBtn.disabled = false; }
@@ -3486,7 +3510,7 @@ async function loadSimulationApproaches() {
     } catch (err) {
         select.innerHTML = '<option value="">-- ERROR LOADING --</option>';
         showError('FAILED TO LOAD APPROACHES');
-        console.error(err);
+        log('SIM', 'Failed to load approaches:', err);
     } finally {
         select.disabled = false;
     }
@@ -3570,7 +3594,7 @@ async function runSimulation() {
                         { headers: { 'accept': '*/*' } }
                     );
                     if (!predRes.ok) {
-                        console.warn(`[SIM] Predict failed — round=${round} home=${game.teamIdHome} away=${game.teamIdOut} status=${predRes.status}`);
+                        log('SIM', `Predict failed — round=${round} home=${game.teamIdHome} away=${game.teamIdOut} status=${predRes.status}`);
                         return { apiError: true };
                     }
                     const pred = await predRes.json();
@@ -3578,7 +3602,7 @@ async function runSimulation() {
                     const predicted = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
                     return { apiError: false, isCorrect: predicted === actual };
                 } catch (err) {
-                    console.warn(`[SIM] Predict error — round=${round} home=${game.teamIdHome} away=${game.teamIdOut}`, err);
+                    log('SIM', `Predict error — round=${round} home=${game.teamIdHome} away=${game.teamIdOut}`, err);
                     return { apiError: true };
                 }
             }));
@@ -3615,7 +3639,7 @@ async function runSimulation() {
         if (progress) progress.style.display = 'none';
         container.innerHTML = '<div class="football-placeholder">SIMULATION ERROR</div>';
         showError('SIMULATION FAILED');
-        console.error(err);
+        log('SIM', 'Simulation failed:', err);
     } finally {
         if (btn) { btn.textContent = '[ RUN SIMULATION ]'; btn.disabled = false; }
     }
@@ -3781,7 +3805,7 @@ async function populateSimResultsApproachSelect() {
         });
         simResultsApproachesLoaded = true;
     } catch (err) {
-        console.error('Failed to populate sim results approach select:', err);
+        log('SIM', 'Failed to populate sim results approach select:', err);
     }
 }
 
@@ -3808,7 +3832,7 @@ async function loadSavedSimulations() {
     } catch (err) {
         container.innerHTML = '<div class="football-placeholder">ERROR LOADING RESULTS</div>';
         showError('FAILED TO LOAD SIMULATION RESULTS');
-        console.error(err);
+        log('SIM', 'Failed to load simulation results:', err);
     } finally {
         if (btn) { btn.textContent = '[ LOAD RESULTS ]'; btn.disabled = false; }
     }
@@ -3840,7 +3864,7 @@ async function deleteSimulationResults() {
         await loadSavedSimulations();
     } catch (err) {
         showError('FAILED TO DELETE SIMULATION RESULTS');
-        console.error(err);
+        log('SIM', 'Failed to delete simulation results:', err);
     } finally {
         if (btn) { btn.textContent = '[ DELETE RESULTS ]'; btn.disabled = false; }
     }
@@ -4045,7 +4069,7 @@ async function runAllApproaches() {
                                     { headers: { 'accept': '*/*' } }
                                 );
                                 if (!predRes.ok) {
-                                    console.warn(`[RUN-ALL] Predict failed — season=${seasonId} round=${round} approach=${approach.index} home=${game.teamIdHome} away=${game.teamIdOut} status=${predRes.status}`);
+                                    log('SIM', `RUN-ALL predict failed — season=${seasonId} round=${round} approach=${approach.index} home=${game.teamIdHome} away=${game.teamIdOut} status=${predRes.status}`);
                                     return { apiError: true };
                                 }
                                 const pred = await predRes.json();
@@ -4053,7 +4077,7 @@ async function runAllApproaches() {
                                 const predicted = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
                                 return { apiError: false, isCorrect: predicted === actual };
                             } catch (err) {
-                                console.warn(`[RUN-ALL] Predict error — season=${seasonId} round=${round} approach=${approach.index} home=${game.teamIdHome} away=${game.teamIdOut}`, err);
+                                log('SIM', `RUN-ALL predict error — season=${seasonId} round=${round} approach=${approach.index} home=${game.teamIdHome} away=${game.teamIdOut}`, err);
                                 return { apiError: true };
                             }
                         }));
@@ -4072,7 +4096,7 @@ async function runAllApproaches() {
                             if (!saveRes.ok) throw new Error(`HTTP ${saveRes.status}`);
                             roundsSaved++;
                         } catch (err) {
-                            console.warn(`[RUN-ALL] Save failed — season=${seasonId} round=${round} approach=${approach.index}`, err);
+                            log('SIM', `RUN-ALL save failed — season=${seasonId} round=${round} approach=${approach.index}`, err);
                             saveErrors++;
                         }
 
@@ -4105,7 +4129,7 @@ async function runAllApproaches() {
         if (titleEl) titleEl.textContent = 'BATCH STATUS';
         container.innerHTML = '<div class="football-placeholder">ERROR</div>';
         showError('BATCH RUN FAILED');
-        console.error(err);
+        log('SIM', 'Batch run failed:', err);
     } finally {
         if (allBtn) { allBtn.textContent = '[ RUN BATCH ]'; allBtn.disabled = false; }
         if (runBtn) runBtn.disabled = false;
@@ -4142,7 +4166,7 @@ async function saveSimulationResults() {
         showSuccess('SIMULATION RESULTS SAVED');
     } catch (err) {
         showError('SAVE FAILED');
-        console.error(err);
+        log('SIM', 'Save failed:', err);
     } finally {
         if (btn) { btn.textContent = '[ SAVE RESULTS ]'; btn.disabled = false; }
     }
