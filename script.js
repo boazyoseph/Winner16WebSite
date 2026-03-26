@@ -1395,22 +1395,24 @@ async function predictGames() {
 }
 
 function calcConsensus(approaches, gamePreds) {
-    const votes = { '1': 0, 'X': 0, '2': 0 };
+    const scores = { '1': 0, 'X': 0, '2': 0 };
     let validCount = 0;
-    approaches.forEach((_, ai) => {
+    approaches.forEach((approach, ai) => {
         const pred = gamePreds[ai];
         if (!pred) return;
         const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
         if (pred.predictedResult == null && h == null && d == null && a == null) return;
         validCount++;
         const outcome = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
-        votes[outcome]++;
+        // Weight by approach simulation score; fall back to 1 if no score available
+        const weight = approach.simAvgScore != null ? approach.simAvgScore : 1;
+        scores[outcome] += weight;
     });
-    if (validCount === 0) return { outcome: '?', votes, conflict: true };
-    const max = Math.max(votes['1'], votes['X'], votes['2']);
-    const winners = Object.entries(votes).filter(([, v]) => v === max);
+    if (validCount === 0) return { outcome: '?', scores, conflict: true };
+    const max = Math.max(scores['1'], scores['X'], scores['2']);
+    const winners = Object.entries(scores).filter(([, v]) => v === max);
     const conflict = winners.length > 1;
-    return { outcome: conflict ? '~' : winners[0][0], votes, conflict };
+    return { outcome: conflict ? '~' : winners[0][0], scores, conflict };
 }
 
 function renderPredictPanel(approaches, allPredictions) {
@@ -1448,7 +1450,8 @@ function renderPredictPanel(approaches, allPredictions) {
         else if (consensus.outcome === 'X') consensusCls = 'predict-cell--draw';
         else                                consensusCls = 'predict-cell--away';
 
-        const voteStr = `1·${consensus.votes['1']}  X·${consensus.votes['X']}  2·${consensus.votes['2']}`;
+        const fmt = v => Number.isInteger(v) ? v : v.toFixed(1);
+        const voteStr = `1·${fmt(consensus.scores['1'])}  X·${fmt(consensus.scores['X'])}  2·${fmt(consensus.scores['2'])}`;
 
         // ── Main (collapsed) row ──────────────────────────────────────────
         const mainTr = document.createElement('tr');
