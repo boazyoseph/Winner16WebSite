@@ -4,9 +4,9 @@ const welcomeMessage = "> SECURE TERMINAL v3.14.159 // Enter credentials to proc
 const LOCAL_API_BASE  = 'http://localhost:12410';
 const ACCESS_API_BASE = 'https://football-api.yosephhome.com';
 
-// Default to local server; user can switch via Settings
+// Default to remote server; user can switch via Settings
 if (localStorage.getItem('useLocalServer') === null) {
-    localStorage.setItem('useLocalServer', 'true');
+    localStorage.setItem('useLocalServer', 'false');
 }
 
 function getApiBase() {
