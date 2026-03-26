@@ -1147,9 +1147,28 @@ async function loadApproachesTab() {
     if (!container) return;
     container.innerHTML = '<div class="football-placeholder">LOADING...</div>';
     try {
-        const res = await apiFetch(`${getApiBase()}/api/Prediction/approaches`, { headers: { 'accept': '*/*' } });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const approaches = await res.json();
+        const [approachesRes, scoresRes] = await Promise.all([
+            apiFetch(`${getApiBase()}/api/Prediction/approaches`, { headers: { 'accept': '*/*' } }),
+            apiFetch(`${getApiBase()}/api/Prediction/simulation/scores`, { headers: { 'accept': '*/*' } })
+        ]);
+        if (!approachesRes.ok) throw new Error('HTTP ' + approachesRes.status);
+        const approaches = await approachesRes.json();
+
+        const scores = scoresRes.ok ? await scoresRes.json().catch(() => []) : [];
+        console.log('[Approaches] simulation/scores status:', scoresRes.status, 'rows:', scores.length, scores);
+        const scoreMap = {};
+        scores.forEach(s => { scoreMap[s.approach] = s; });
+        approaches.forEach(a => {
+            const s = scoreMap[a.index];
+            if (s) {
+                a.simAvgScore   = s.averageScore;
+                a.simTotalScore = s.totalScore;
+                a.simCount      = s.count;
+            }
+        });
+
+        approaches.sort((a, b) => (b.simAvgScore ?? -1) - (a.simAvgScore ?? -1));
+
         renderApproachesPanel(approaches);
     } catch (err) {
         container.innerHTML = `<div class="football-placeholder">ERROR: ${err.message}</div>`;
@@ -1161,6 +1180,13 @@ function renderApproachesPanel(approaches) {
     if (!container) return;
 
     const hasStats = approaches.some(a => a.accuracyRate != null);
+    // Always show SIM columns (shows — when no data for a given approach)
+    const hasSimScore = true;
+
+    // Total column count for colspan
+    let totalCols = 2; // # + NAME
+    if (hasStats)    totalCols += 4; // ACCURACY, CORRECT, TOTAL, AVG SCORE
+    if (hasSimScore) totalCols += 2; // SIM AVG, ROUNDS
 
     let html = `<table class="predict-table approaches-table">
         <thead>
@@ -1172,6 +1198,8 @@ function renderApproachesPanel(approaches) {
                 <th class="approaches-stat-header">CORRECT</th>
                 <th class="approaches-stat-header">TOTAL</th>
                 <th class="approaches-stat-header">AVG SCORE</th>` : ''}
+                <th class="approaches-stat-header">SIM AVG</th>
+                <th class="approaches-stat-header">ROUNDS</th>
             </tr>
         </thead>
         <tbody>`;
@@ -1187,6 +1215,25 @@ function renderApproachesPanel(approaches) {
             ? (a.accuracyRate >= 0.5 ? 'approaches-stat--good' : a.accuracyRate >= 0.4 ? 'approaches-stat--mid' : 'approaches-stat--low')
             : '';
 
+        let simScoreCols;
+        if (a.simAvgScore != null) {
+            const pct   = (a.simAvgScore * 100).toFixed(1);
+            const width = (a.simAvgScore * 100).toFixed(2);
+            const cls   = a.simAvgScore >= 0.5 ? 'approaches-stat--good'
+                        : a.simAvgScore >= 0.4 ? 'approaches-stat--mid'
+                        : 'approaches-stat--low';
+            simScoreCols = `
+            <td class="approaches-stat approaches-sim-score-cell">
+                <div class="approaches-sim-score-wrap">
+                    <span class="approaches-stat ${cls}">${pct}%</span>
+                    <div class="approaches-sim-track"><div class="approaches-sim-fill ${cls.replace('approaches-stat--', 'approaches-sim-fill--')}" style="width:${width}%"></div></div>
+                </div>
+            </td>
+            <td class="approaches-stat">${a.simCount}</td>`;
+        } else {
+            simScoreCols = `<td class="approaches-stat">—</td><td class="approaches-stat">—</td>`;
+        }
+
         html += `
         <tr class="predict-row approaches-row approaches-main-row" data-idx="${i}">
             <td class="predict-row-num">${a.index}</td>
@@ -1199,9 +1246,10 @@ function renderApproachesPanel(approaches) {
             <td class="approaches-stat">${correct}</td>
             <td class="approaches-stat">${total}</td>
             <td class="approaches-stat">${avgScore}</td>` : ''}
+            ${simScoreCols}
         </tr>
         <tr class="approaches-detail-row" id="approaches-detail-${i}" style="display:none">
-            <td colspan="${hasStats ? 6 : 2}">
+            <td colspan="${totalCols}">
                 <div class="approaches-detail-panel">
                     <div class="approaches-detail-section">
                         <span class="approaches-detail-label">DESCRIPTION</span>
@@ -1248,20 +1296,23 @@ async function loadPredictionApproaches() {
 
 async function loadBestPredictionApproaches() {
     const top = parseInt(localStorage.getItem('bestApproachesCount') ?? '5', 10);
-    const allApproaches = await loadPredictionApproaches();
+    const [allApproaches, scoresRes] = await Promise.all([
+        loadPredictionApproaches(),
+        apiFetch(`${getApiBase()}/api/Prediction/simulation/scores`, { headers: { 'accept': '*/*' } })
+    ]);
+
+    if (scoresRes.ok) {
+        const scores = await scoresRes.json().catch(() => []);
+        const scoreMap = {};
+        scores.forEach(s => { scoreMap[s.approach] = s.averageScore; });
+        allApproaches.forEach(a => { a.simAvgScore = scoreMap[a.index] ?? null; });
+    }
+
+    // Sort by simulation score descending; unscored approaches fall to the bottom
+    allApproaches.sort((a, b) => (b.simAvgScore ?? -1) - (a.simAvgScore ?? -1));
+
     if (top === 0) return allApproaches;
-    const params = new URLSearchParams({ top });
-    if (currentSeasonId) params.set('seasonId', currentSeasonId);
-    const res = await apiFetch(`${getApiBase()}/api/Prediction/best-approaches?${params}`, {
-        headers: { 'accept': '*/*' }
-    });
-    if (!res.ok) return allApproaches;
-    const best = await res.json().catch(() => []);
-    if (!best.length) return allApproaches;
-    // Normalize: find each returned entry in allApproaches by index field (handles any field name variant)
-    const indexSet = new Set(best.map(b => b.index ?? b.approachIndex ?? b.approach ?? b.id));
-    const matched = allApproaches.filter(a => indexSet.has(a.index));
-    return matched.length ? matched : allApproaches;
+    return allApproaches.slice(0, top);
 }
 
 async function predictGames() {

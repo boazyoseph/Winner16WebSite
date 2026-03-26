@@ -2984,6 +2984,47 @@ body {
     margin: 0;
 }
 
+/* ── Approaches sim score bar ─────────────────────────────────────────────── */
+.approaches-sim-score-cell {
+    min-width: 90px;
+}
+
+.approaches-sim-score-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+
+.approaches-sim-track {
+    width: 100%;
+    height: 4px;
+    background: rgba(0, 255, 249, 0.08);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.approaches-sim-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s ease;
+}
+
+.approaches-sim-fill--good {
+    background: var(--color-accent);
+    box-shadow: 0 0 6px rgba(0, 255, 0, 0.6);
+}
+
+.approaches-sim-fill--mid {
+    background: var(--color-warning, #ffaa00);
+    box-shadow: 0 0 6px rgba(255, 170, 0, 0.6);
+}
+
+.approaches-sim-fill--low {
+    background: var(--color-secondary);
+    box-shadow: 0 0 6px rgba(255, 0, 255, 0.5);
+}
+
 /* ── Inspection panel ──────────────────────────────────────────────────────── */
 .dynamic-inspection-panel {
     overflow: hidden !important;
