@@ -41,6 +41,23 @@ function handleUnauthorized() {
     showError('Session expired. Please log in again.');
 }
 
+async function fetchWithRetry(url, options = {}, { retries = 3, delay = 800, retryOn = [] } = {}) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const res = await fetch(url, options);
+            // Retry on specific HTTP status codes (e.g. 502, 503, 504) or any provided status
+            const shouldRetry = retryOn.includes(res.status) ||
+                (retryOn.length === 0 && [502, 503, 504].includes(res.status));
+            if (!shouldRetry || attempt === retries) return res;
+            log('API', `↻ Retry ${attempt}/${retries - 1} for ${url} (HTTP ${res.status})`);
+        } catch (err) {
+            if (attempt === retries) throw err;
+            log('API', `↻ Retry ${attempt}/${retries - 1} for ${url} (${err.message})`);
+        }
+        await new Promise(r => setTimeout(r, delay * attempt));
+    }
+}
+
 async function apiFetch(url, options = {}) {
     if (isTokenExpired()) { handleUnauthorized(); throw new Error('UNAUTHORIZED'); }
     const token = localStorage.getItem('authToken');
@@ -50,7 +67,7 @@ async function apiFetch(url, options = {}) {
     const method = (options.method || 'GET').toUpperCase();
     if (!isPing) log('API', `→ ${method} ${url}`, ...(options.body ? [JSON.parse(options.body)] : []));
     const t0 = performance.now();
-    const res = await fetch(url, { ...options, headers });
+    const res = await fetchWithRetry(url, { ...options, headers });
     const ms = Math.round(performance.now() - t0);
     if (!isPing) log('API', `← ${res.status} ${method} ${url} (${ms}ms)`);
     if (res.status === 401) { handleUnauthorized(); throw new Error('UNAUTHORIZED'); }
@@ -73,7 +90,7 @@ function applyPingStatus(state, label) {
 
 async function checkPingStatus() {
     try {
-        const res = await fetch(getApiBase() + '/api/Ping', {
+        const res = await fetchWithRetry(getApiBase() + '/api/Ping', {
             method: 'GET',
             headers: { 'accept': '*/*' },
             signal: AbortSignal.timeout(5000)
@@ -205,7 +222,7 @@ function handleLogin() {
     // Call .NET backend API
     const loginT0 = performance.now();
     log('API', `→ POST ${getApiBase()}/api/Login`);
-    fetch(getApiBase() + '/api/Login', {
+    fetchWithRetry(getApiBase() + '/api/Login', {
         method: 'POST',
         headers: {
             'accept': '*/*',
@@ -503,7 +520,7 @@ function handleRegistration(e) {
     registerBtn.disabled = true;
 
     // Call registration API
-    fetch(getApiBase() + '/api/users', {
+    fetchWithRetry(getApiBase() + '/api/users', {
         method: 'POST',
         headers: {
             'accept': '*/*',
