@@ -1303,8 +1303,8 @@ async function loadPredictionApproaches() {
     return cachedApproaches;
 }
 
-async function loadBestPredictionApproaches() {
-    const top = parseInt(localStorage.getItem('bestApproachesCount') ?? '5', 10);
+async function loadBestPredictionApproaches(limit = null) {
+    const top = limit !== null ? limit : parseInt(localStorage.getItem('bestApproachesCount') ?? '5', 10);
     const [allApproaches, scoresRes] = await Promise.all([
         loadPredictionApproaches(),
         apiFetch(`${getApiBase()}/api/Prediction/simulation/scores`, { headers: { 'accept': '*/*' } })
@@ -1333,25 +1333,24 @@ async function predictGames() {
     if (btn) { btn.textContent = '[ LOADING... ]'; btn.disabled = true; }
 
     try {
-        console.log('[PREDICT] Fetching best approaches...');
-        const approaches = await loadBestPredictionApproaches();
-        console.log('[PREDICT] Best approaches:', approaches);
+        const top = parseInt(localStorage.getItem('bestApproachesCount') ?? '5', 10);
+        console.log('[PREDICT] Fetching all approaches for dedup...');
+        // Load all approaches (0 = no limit) so we can skip duplicates and still fill top N
+        const approachPool = await loadBestPredictionApproaches(0);
+        console.log('[PREDICT] Approach pool:', approachPool.length);
 
-        const allPredictions = await Promise.all(
+        const allPredictionsPool = await Promise.all(
             selectedGames.map(game =>
                 Promise.all(
-                    approaches.map(async approach => {
+                    approachPool.map(async approach => {
                         const url = `${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamHomeId}&awayTeamId=${game.teamOutId}&seasonId=${game.seasonId}&round=${game.round}&approach=${approach.index}`;
-                        console.log(`[PREDICT] Fetching: ${url}`);
                         try {
                             const r = await apiFetch(url, { headers: { 'accept': '*/*' } });
                             if (!r.ok) {
-                                console.warn(`[PREDICT] HTTP ${r.status} for approach ${approach.index} (${approach.name}):`, await r.text().catch(() => ''));
+                                console.warn(`[PREDICT] HTTP ${r.status} for approach ${approach.index}`);
                                 return null;
                             }
-                            const data = await r.json();
-                            console.log(`[PREDICT] Result approach=${approach.index}:`, data);
-                            return data;
+                            return await r.json();
                         } catch (fetchErr) {
                             console.error(`[PREDICT] Fetch error for approach ${approach.index}:`, fetchErr);
                             return null;
@@ -1361,7 +1360,25 @@ async function predictGames() {
             )
         );
 
-        console.log('[PREDICT] All predictions:', allPredictions);
+        // Deduplicate: skip approaches whose prediction fingerprint matches a previous one
+        const seen = new Set();
+        const uniqueIndices = [];
+        for (let a = 0; a < approachPool.length; a++) {
+            const fingerprint = allPredictionsPool.map(gamePreds => {
+                const pred = gamePreds[a];
+                return pred ? (pred.predictedResult ?? pred.prediction ?? '?') : '?';
+            }).join(',');
+            if (!seen.has(fingerprint)) {
+                seen.add(fingerprint);
+                uniqueIndices.push(a);
+            }
+        }
+
+        const limitedIndices = top === 0 ? uniqueIndices : uniqueIndices.slice(0, top);
+        const approaches = limitedIndices.map(i => approachPool[i]);
+        const allPredictions = allPredictionsPool.map(gamePreds => limitedIndices.map(i => gamePreds[i]));
+
+        console.log('[PREDICT] Unique approaches after dedup:', approaches.length);
         renderPredictPanel(approaches, allPredictions);
         renderTicketPanel(approaches, allPredictions);
         const tabBtn = document.getElementById('tabBtnPredict');
