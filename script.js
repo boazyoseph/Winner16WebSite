@@ -882,15 +882,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabBtn) tabBtn.style.display = 'none';
         switchFootballTab('matches');
     });
-    document.getElementById('tabBtnPredictFull')?.addEventListener('click', e => {
-        if (e.target.id === 'closePredictFullTabBtn' || e.target.closest('#closePredictFullTabBtn')) return;
-        switchFootballTab('predictFull');
+    document.getElementById('tabBtnTicket')?.addEventListener('click', e => {
+        if (e.target.id === 'closeTicketTabBtn' || e.target.closest('#closeTicketTabBtn')) return;
+        switchFootballTab('ticket');
     });
-    document.getElementById('closePredictFullTabBtn')?.addEventListener('click', e => {
+    document.getElementById('closeTicketTabBtn')?.addEventListener('click', e => {
         e.stopPropagation();
-        const tabBtn = document.getElementById('tabBtnPredictFull');
+        const tabBtn = document.getElementById('tabBtnTicket');
         if (tabBtn) tabBtn.style.display = 'none';
         switchFootballTab('matches');
+    });
+    document.getElementById('ticketPrintBtn')?.addEventListener('click', () => {
+        const canvas = document.getElementById('ticketCanvas');
+        if (!canvas) return;
+        const win = window.open('', '_blank');
+        win.document.write(`<html><head><title>Winner16 Ticket</title>
+            <style>body{margin:0;} img{width:100%;}</style></head>
+            <body><img src="${canvas.toDataURL('image/jpeg', 0.95)}" onload="window.print();window.close()"></body></html>`);
+        win.document.close();
     });
 
     // Football sidebar resizer
@@ -1354,11 +1363,11 @@ async function predictGames() {
 
         console.log('[PREDICT] All predictions:', allPredictions);
         renderPredictPanel(approaches, allPredictions);
-        renderPredictFullPanel(approaches, allPredictions);
+        renderTicketPanel(approaches, allPredictions);
         const tabBtn = document.getElementById('tabBtnPredict');
         if (tabBtn) tabBtn.style.display = '';
-        const tabBtnFull = document.getElementById('tabBtnPredictFull');
-        if (tabBtnFull) tabBtnFull.style.display = '';
+        const tabBtnTicket = document.getElementById('tabBtnTicket');
+        if (tabBtnTicket) tabBtnTicket.style.display = '';
         switchFootballTab('predict');
     } catch (err) {
         showError('PREDICTION FAILED');
@@ -1501,53 +1510,119 @@ function renderPredictPanel(approaches, allPredictions) {
     container.appendChild(table);
 }
 
-function renderPredictFullPanel(approaches, allPredictions) {
-    const container = document.getElementById('predictFullContainer');
+
+// Grid calibration for the scanned ticket image (2176 × 1364 px)
+// Adjust these if marks are misaligned:
+//   left  — shift all columns left/right
+//   top   — shift all rows up/down
+//   colW  — widen/narrow column group spacing
+//   rowH  — taller/shorter row spacing
+// Grid calibration for the scanned ticket image (2176 × 1364 px)
+// Measured precisely by scanning pixel colors in the ticket image:
+//   sub-cell interior = 34px, centers spaced 50px apart
+//   column group spacing = 149px, first group left edge = 266px
+//   row center spacing = 53px, row-1 top edge = ~189px
+const TICKET_GRID = {
+    left:    266,   // x of first (totomat-10) column group's left edge
+    top:     189,   // y of top of first game row
+    colW:    149,   // spacing between column group starts
+    cellW:    50,   // center-to-center spacing between sub-cells
+    rowH:     53,   // center-to-center spacing between game rows
+    markR:    15,   // radius of the filled circle mark
+};
+
+function renderTicketPanel(approaches, allPredictions) {
+    const container = document.getElementById('ticketContainer');
     if (!container) return;
 
-    if (!selectedGames.length) {
-        container.innerHTML = '<div class="football-placeholder">NO GAMES TO PREDICT</div>';
+    const maxCols  = Math.min(approaches.length, 10);
+    const numGames = Math.min(selectedGames.length, 16);
+
+    if (!numGames || !maxCols) {
+        container.innerHTML = '<div class="football-placeholder">CLICK PREDICT GAMES TO RUN ANALYSIS</div>';
         return;
     }
 
-    const table = document.createElement('table');
-    table.className = 'predict-table predict-full-table';
-
-    const thead = document.createElement('thead');
-    const headerCells = approaches.map(a =>
-        `<th class="predict-approach-header" title="${a.description}">${a.name.toUpperCase()}</th>`
+    // Legend: game number → team names
+    const legendRows = selectedGames.slice(0, 16).map((g, i) =>
+        `<tr>
+            <td class="ticket-legend-num">.${i + 1}</td>
+            <td class="ticket-legend-home">${g.homeTeamName.toUpperCase()}</td>
+            <td class="ticket-legend-sep">vs</td>
+            <td class="ticket-legend-away">${g.awayTeamName.toUpperCase()}</td>
+        </tr>`
     ).join('');
-    thead.innerHTML = `<tr><th class="predict-row-num-header">#</th>${headerCells}</tr>`;
-    table.appendChild(thead);
 
-    const tbody = document.createElement('tbody');
-    selectedGames.forEach((_, idx) => {
-        const gamePreds = allPredictions[idx];
-        const tr = document.createElement('tr');
-        tr.className = 'predict-row';
+    container.innerHTML = `
+        <div class="ticket-canvas-wrap">
+            <canvas id="ticketCanvas"></canvas>
+        </div>
+        <table class="ticket-legend">
+            <tbody>${legendRows}</tbody>
+        </table>`;
 
-        let cells = `<td class="predict-row-num">${idx + 1}</td>`;
-        approaches.forEach((approach, ai) => {
-            const pred = gamePreds[ai];
-            if (!pred) {
-                cells += `<td class="predict-cell predict-cell--error"><span class="predict-outcome">?</span></td>`;
-                return;
-            }
-            const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
-            const outcome = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
-            let cls;
-            if (outcome === '1')      cls = 'predict-cell--home';
-            else if (outcome === 'X') cls = 'predict-cell--draw';
-            else                      cls = 'predict-cell--away';
-            cells += `<td class="predict-cell ${cls}"><span class="predict-outcome">${outcome}</span></td>`;
-        });
-        tr.innerHTML = cells;
-        tbody.appendChild(tr);
-    });
+    const canvas = document.getElementById('ticketCanvas');
+    const ctx    = canvas.getContext('2d');
+    const img    = new Image();
+    img.onload = () => {
+        canvas.width  = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        ctx.drawImage(img, 0, 0);
+        drawTicketMarks(ctx, approaches, allPredictions, maxCols, numGames);
+    };
+    img.src = 'assets/ticket.jpg';
+}
 
-    table.appendChild(tbody);
-    container.innerHTML = '';
-    container.appendChild(table);
+function drawTicketMarks(ctx, approaches, allPredictions, maxCols, numGames) {
+    const { left, top, colW, cellW, rowH, markR } = TICKET_GRID;
+
+
+    // Draw marks
+    for (let g = 0; g < numGames; g++) {
+        const gamePreds = allPredictions[g];
+        const cy = top + (g + 0.5) * rowH;
+
+        for (let a = 0; a < maxCols; a++) {
+            const pred = gamePreds[a];
+            if (!pred) continue;
+
+            const h = pred.homeWinProbability, d = pred.drawProbability, aw = pred.awayWinProbability;
+            const outcome = pred.predictedResult ?? (h >= d && h >= aw ? '1' : d >= aw ? 'X' : '2');
+
+            // Approach a (0=best) → totomat (a+1) → column from left = 9-a
+            const groupLeft = left + (9 - a) * colW;
+            let cx;
+            if      (outcome === '2') cx = groupLeft + 0.5 * cellW;
+            else if (outcome === 'X') cx = groupLeft + 1.5 * cellW;
+            else                      cx = groupLeft + 2.5 * cellW; // '1'
+
+            ctx.save();
+            ctx.font         = `bold ${markR * 2}px Arial`;
+            ctx.fillStyle    = 'rgba(0, 0, 0, 0.92)';
+            ctx.textAlign    = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('X', cx, cy);
+            ctx.restore();
+        }
+
+        // Consensus column — one column to the left of the last approach column
+        const consensus = calcConsensus(approaches, gamePreds);
+        if (consensus.outcome && consensus.outcome !== '~') {
+            const consensusCol  = left + (9 - maxCols) * colW;
+            let ccx;
+            if      (consensus.outcome === '2') ccx = consensusCol + 0.5 * cellW;
+            else if (consensus.outcome === 'X') ccx = consensusCol + 1.5 * cellW;
+            else                                ccx = consensusCol + 2.5 * cellW;
+
+            ctx.save();
+            ctx.font         = `bold ${markR * 2}px Arial`;
+            ctx.fillStyle    = 'rgba(180, 0, 0, 0.92)';
+            ctx.textAlign    = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('X', ccx, cy);
+            ctx.restore();
+        }
+    }
 }
 
 // ── Football API ──────────────────────────────────────────────────────────────
@@ -2122,7 +2197,7 @@ function switchFootballTab(tabName) {
         rounds:       document.getElementById('footballRoundsPanel'),
         matches:      document.getElementById('footballMatchesPanel'),
         predict:      document.getElementById('footballPredictPanel'),
-        predictFull:  document.getElementById('footballPredictFullPanel'),
+        ticket:       document.getElementById('footballTicketPanel'),
         similar:      document.getElementById('footballSimilarPanel'),
         approaches:   document.getElementById('footballApproachesPanel'),
         inspection:   document.getElementById('footballInspectionPanel'),
@@ -2134,7 +2209,7 @@ function switchFootballTab(tabName) {
         rounds:       document.getElementById('tabBtnRounds'),
         matches:      document.getElementById('tabBtnMatches'),
         predict:      document.getElementById('tabBtnPredict'),
-        predictFull:  document.getElementById('tabBtnPredictFull'),
+        ticket:       document.getElementById('tabBtnTicket'),
         similar:      document.getElementById('tabBtnSimilar'),
         approaches:   document.getElementById('tabBtnApproaches'),
         inspection:   document.getElementById('tabBtnInspection'),

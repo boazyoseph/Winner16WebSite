@@ -2476,6 +2476,81 @@ body {
     color: var(--color-primary);
 }
 
+/* ── Winner 16 Ticket Canvas ──────────────────────────────────────────────── */
+#ticketContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+}
+
+.ticket-canvas-wrap {
+    width: 100%;
+    overflow-x: auto;
+}
+
+#ticketCanvas {
+    display: block;
+    width: 100%;
+    max-width: 1400px;
+    height: auto;
+    border: 1px solid var(--color-border);
+}
+
+.ticket-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 0 10px;
+}
+
+.ticket-print-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    background: transparent;
+    border: 1px solid var(--color-primary);
+    color: var(--color-primary);
+    padding: 5px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.ticket-print-btn:hover {
+    background: rgba(0, 255, 249, 0.1);
+}
+
+.ticket-legend {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    border-collapse: collapse;
+    align-self: flex-start;
+}
+
+.ticket-legend-num {
+    color: var(--color-primary);
+    padding: 2px 10px 2px 0;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.ticket-legend-home {
+    color: var(--color-text);
+    padding: 2px 8px;
+    white-space: nowrap;
+}
+
+.ticket-legend-sep {
+    color: var(--color-text-dim);
+    padding: 2px 4px;
+}
+
+.ticket-legend-away {
+    color: var(--color-text);
+    padding: 2px 0 2px 8px;
+    white-space: nowrap;
+}
+
 /* ── Rounds panel ──────────────────────────────────────────────────────────── */
 .football-rounds-panel {
     flex: 1;

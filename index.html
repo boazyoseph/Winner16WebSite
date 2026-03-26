@@ -252,8 +252,8 @@
                         <button class="football-tab-btn" id="tabBtnPredict" style="display:none">
                             PREDICT <span class="football-tab-close" id="closePredictTabBtn">×</span>
                         </button>
-                        <button class="football-tab-btn" id="tabBtnPredictFull" style="display:none">
-                            PREDICT FULL <span class="football-tab-close" id="closePredictFullTabBtn">×</span>
+                        <button class="football-tab-btn" id="tabBtnTicket" style="display:none">
+                            TICKET <span class="football-tab-close" id="closeTicketTabBtn">×</span>
                         </button>
                         <button class="football-tab-btn" id="tabBtnSimilar" style="display:none">
                             SIMILAR <span class="football-tab-close" id="closeSimilarTabBtn">×</span>
@@ -280,9 +280,13 @@
                         <div id="gamesContainer"></div>
                     </div>
 
-                    <!-- Predict Full panel -->
-                    <div class="football-rounds-panel" id="footballPredictFullPanel" style="display:none">
-                        <div id="predictFullContainer">
+
+                    <!-- Ticket panel -->
+                    <div class="football-rounds-panel" id="footballTicketPanel" style="display:none">
+                        <div class="ticket-toolbar">
+                            <button class="ticket-print-btn" id="ticketPrintBtn">⎙ PRINT</button>
+                        </div>
+                        <div id="ticketContainer">
                             <div class="football-placeholder">CLICK PREDICT GAMES TO RUN ANALYSIS</div>
                         </div>
                     </div>
@@ -475,11 +479,14 @@
                                 </div>
                                 <select id="bestApproachesCount" class="settings-select">
                                     <option value="1">1</option>
+                                    <option value="2">2</option>
                                     <option value="3">3</option>
+                                    <option value="4">4</option>
                                     <option value="5" selected>5</option>
-                                    <option value="10">10</option>
-                                    <option value="20">20</option>
-                                    <option value="0">ALL</option>
+                                    <option value="6">6</option>
+                                    <option value="7">7</option>
+                                    <option value="8">8</option>
+                                    <option value="9">9</option>
                                 </select>
                             </div>
                         </div>
