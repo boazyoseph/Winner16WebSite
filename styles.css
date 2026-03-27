@@ -1769,6 +1769,35 @@ body {
     text-align: center;
 }
 
+.sim-catchup-section {
+    border-top: 1px dashed var(--color-border);
+}
+
+.sim-catchup-label {
+    margin-bottom: 6px;
+    font-size: 0.7rem;
+    opacity: 0.7;
+}
+
+.sim-catchup-select {
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.sim-catchup-btn {
+    border-color: var(--color-accent) !important;
+    color: var(--color-accent) !important;
+}
+
+.sim-catchup-btn:hover:not(:disabled) {
+    box-shadow: 0 0 10px rgba(0, 255, 128, 0.35) !important;
+}
+
+.sim-catchup-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* ── Running batch status pane (top) ─────────────────────────────────────── */
 .sim-status-pane {
     display: flex;

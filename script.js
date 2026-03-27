@@ -388,6 +388,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 function activateMatrixMode() {
+    log('UI', 'Konami code activated — matrix mode');
     const terminalWindow = document.querySelector('.terminal-window');
     terminalWindow.style.transition = 'all 0.5s ease';
     terminalWindow.style.borderColor = '#00ff00';
@@ -419,7 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const helpBtn = document.getElementById('helpBtn');
 
     if (homeBtn) {
-        homeBtn.addEventListener('click', () => { hidePanels(); });
+        homeBtn.addEventListener('click', () => { log('NAV', 'Toolbar: HOME'); hidePanels(); });
     }
 
     if (predictionsBtn) {
@@ -445,6 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeHelpModal = document.getElementById('closeHelpModal');
     if (closeHelpModal) {
         closeHelpModal.addEventListener('click', () => {
+            log('UI', 'Help modal closed');
             document.getElementById('helpModal').style.display = 'none';
         });
     }
@@ -454,6 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (helpModal) {
         helpModal.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal-overlay')) {
+                log('UI', 'Help modal closed (overlay click)');
                 helpModal.style.display = 'none';
             }
         });
@@ -467,12 +470,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (createAccountLink) {
         createAccountLink.addEventListener('click', (e) => {
             e.preventDefault();
+            log('UI', 'Register modal opened');
             registerModal.style.display = 'flex';
         });
     }
 
     if (closeRegisterModal) {
         closeRegisterModal.addEventListener('click', () => {
+            log('UI', 'Register modal closed');
             registerModal.style.display = 'none';
         });
     }
@@ -480,6 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (registerModal) {
         registerModal.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal-overlay')) {
+                log('UI', 'Register modal closed (overlay click)');
                 registerModal.style.display = 'none';
             }
         });
@@ -495,6 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Handle Registration
 function handleRegistration(e) {
     e.preventDefault();
+    log('AUTH', 'Registration attempt');
 
     const username = document.getElementById('regUsername').value.trim();
     const email = document.getElementById('regEmail').value.trim();
@@ -626,6 +633,7 @@ function showSimulationsPanel() {
     document.getElementById('simulationsPanel').style.display = 'flex';
     loadSimCountries();
     initSimTopBars();
+    loadCatchupApproaches();
     const simContent = document.getElementById('simulationsContent');
     if (simContent) simContent.innerHTML = '<div class="football-placeholder">SELECT AN APPROACH TO BEGIN SIMULATION</div>';
 }
@@ -657,18 +665,20 @@ function hidePanels() {
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.game-item').forEach(item => {
         item.addEventListener('click', () => {
+            log('GAMES', `Game selected: ${item.textContent?.trim()}`);
             document.querySelectorAll('.game-item').forEach(i => i.classList.remove('active'));
             item.classList.add('active');
             // Future games: swap visible .game-container here
         });
     });
 
-    document.getElementById('tttReset')?.addEventListener('click', resetTtt);
+    document.getElementById('tttReset')?.addEventListener('click', () => { log('GAMES', 'Tic-tac-toe reset'); resetTtt(); });
 
     const healthToggle = document.getElementById('healthToggle');
     if (healthToggle) {
         healthToggle.checked = localStorage.getItem('healthMonitoring') !== 'false';
         healthToggle.addEventListener('change', e => {
+            log('SETTINGS', `Health monitoring: ${e.target.checked ? 'enabled' : 'disabled'}`);
             localStorage.setItem('healthMonitoring', e.target.checked);
             setHealthMonitoring(e.target.checked);
         });
@@ -678,6 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (localServerToggle) {
         localServerToggle.checked = localStorage.getItem('useLocalServer') === 'true';
         localServerToggle.addEventListener('change', e => {
+            log('SETTINGS', `Server: ${e.target.checked ? 'LOCAL' : 'REMOTE'}`);
             localStorage.setItem('useLocalServer', e.target.checked);
             checkPingStatus();
         });
@@ -688,6 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const saved = localStorage.getItem('bestApproachesCount') ?? '5';
         bestApproachesCount.value = saved;
         bestApproachesCount.addEventListener('change', e => {
+            log('SETTINGS', `Best approaches count: ${e.target.value}`);
             localStorage.setItem('bestApproachesCount', e.target.value);
         });
     }
@@ -698,6 +710,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (exportFileName) {
         exportFileName.value = localStorage.getItem('exportFileName') ?? 'Winner16-{datetime}';
         exportFileName.addEventListener('change', e => {
+            log('SETTINGS', `Export filename: ${e.target.value.trim() || 'Winner16-{datetime}'}`);
             localStorage.setItem('exportFileName', e.target.value.trim() || 'Winner16-{datetime}');
         });
     }
@@ -711,6 +724,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('exportFolderBrowseBtn')?.addEventListener('click', async () => {
+        log('SETTINGS', 'Export folder browse clicked');
         if (!window.showDirectoryPicker) {
             showError('FOLDER PICKER NOT SUPPORTED IN THIS BROWSER');
             return;
@@ -720,6 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await saveFolderHandle(handle);
             const pathEl = document.getElementById('exportFolderPath');
             if (pathEl) pathEl.value = handle.name;
+            log('SETTINGS', `Export folder set: ${handle.name}`);
             showSuccess('DEFAULT FOLDER SET');
         } catch (err) {
             if (err.name !== 'AbortError') showError('FOLDER SELECT FAILED');
@@ -730,11 +745,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tttBoard')?.addEventListener('click', e => {
         const cell = e.target.closest('.ttt-cell');
         if (!cell || cell.classList.contains('taken') || !tttGameActive) return;
+        log('GAMES', `Tic-tac-toe cell clicked: index=${cell.dataset.index}`);
         handleTttMove(parseInt(cell.dataset.index));
     });
 
     // Football cascading dropdowns
     document.getElementById('countrySelect')?.addEventListener('change', async e => {
+        log('FOOTBALL', `Country selected: id=${e.target.value}`);
         clearStandings();
         clearSimulationPage();
         hideRoundsTabBtn();
@@ -751,12 +768,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const sel = document.getElementById('countrySelect');
         if (!sel?.value) return;
         const id = String(sel.value);
-        if (favCountries.has(id)) favCountries.delete(id); else favCountries.add(id);
+        const adding = !favCountries.has(id);
+        if (adding) favCountries.add(id); else favCountries.delete(id);
+        log('FOOTBALL', `Country fav ${adding ? 'added' : 'removed'}: id=${id}`);
         saveFavCountries();
         renderCountryOptions(sel);
     });
     document.getElementById('countryFavFilterBtn')?.addEventListener('click', e => {
         favCountriesOnly = !favCountriesOnly;
+        log('FOOTBALL', `Country fav filter: ${favCountriesOnly ? 'ON' : 'OFF'}`);
         e.currentTarget.classList.toggle('active', favCountriesOnly);
         const sel = document.getElementById('countrySelect');
         if (sel) renderCountryOptions(sel);
@@ -767,18 +787,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const sel = document.getElementById('leagueSelect');
         if (!sel?.value) return;
         const id = String(sel.value);
-        if (favLeagues.has(id)) favLeagues.delete(id); else favLeagues.add(id);
+        const adding = !favLeagues.has(id);
+        if (adding) favLeagues.add(id); else favLeagues.delete(id);
+        log('FOOTBALL', `League fav ${adding ? 'added' : 'removed'}: id=${id}`);
         saveFavLeagues();
         renderLeagueOptions(sel);
     });
     document.getElementById('leagueFavFilterBtn')?.addEventListener('click', e => {
         favLeaguesOnly = !favLeaguesOnly;
+        log('FOOTBALL', `League fav filter: ${favLeaguesOnly ? 'ON' : 'OFF'}`);
         e.currentTarget.classList.toggle('active', favLeaguesOnly);
         const sel = document.getElementById('leagueSelect');
         if (sel) renderLeagueOptions(sel);
     });
 
     document.getElementById('leagueSelect')?.addEventListener('change', async e => {
+        log('FOOTBALL', `League selected: id=${e.target.value}`);
         clearStandings();
         clearSimulationPage();
         hideRoundsTabBtn();
@@ -788,6 +812,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderFootballContent();
     });
     document.getElementById('seasonSelect')?.addEventListener('change', async e => {
+        log('FOOTBALL', `Season selected: id=${e.target.value}`);
         clearSimulationPage();
         renderFootballContent();
         if (e.target.value) {
@@ -807,6 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Simulations cascading dropdowns
     document.getElementById('simCountrySelect')?.addEventListener('change', async e => {
+        log('SIM', `Country selected: id=${e.target.value}`);
         updateCountryFavBtn(e.target.value);
         await populateSimLeagueSelect(e.target.value);
     });
@@ -816,12 +842,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const sel = document.getElementById('simCountrySelect');
         if (!sel?.value) return;
         const id = String(sel.value);
-        if (favCountries.has(id)) favCountries.delete(id); else favCountries.add(id);
+        const adding = !favCountries.has(id);
+        if (adding) favCountries.add(id); else favCountries.delete(id);
+        log('SIM', `Country fav ${adding ? 'added' : 'removed'}: id=${id}`);
         saveFavCountries();
         renderCountryOptions(sel);
     });
     document.getElementById('simCountryFavFilterBtn')?.addEventListener('click', e => {
         simFavCountriesOnly = !simFavCountriesOnly;
+        log('SIM', `Country fav filter: ${simFavCountriesOnly ? 'ON' : 'OFF'}`);
         e.currentTarget.classList.toggle('active', simFavCountriesOnly);
         const sel = document.getElementById('simCountrySelect');
         if (sel) renderCountryOptions(sel, simFavCountriesOnly);
@@ -832,7 +861,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const sel = document.getElementById('simLeagueSelect');
         if (!sel?.value) return;
         const id = String(sel.value);
-        if (favLeagues.has(id)) favLeagues.delete(id); else favLeagues.add(id);
+        const adding = !favLeagues.has(id);
+        if (adding) favLeagues.add(id); else favLeagues.delete(id);
+        log('SIM', `League fav ${adding ? 'added' : 'removed'}: id=${id}`);
         saveFavLeagues();
         const saved = footballLeagues;
         footballLeagues = simLeagues;
@@ -841,6 +872,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('simLeagueFavFilterBtn')?.addEventListener('click', e => {
         simFavLeaguesOnly = !simFavLeaguesOnly;
+        log('SIM', `League fav filter: ${simFavLeaguesOnly ? 'ON' : 'OFF'}`);
         e.currentTarget.classList.toggle('active', simFavLeaguesOnly);
         const sel = document.getElementById('simLeagueSelect');
         if (sel) {
@@ -852,6 +884,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('simLeagueSelect')?.addEventListener('change', async e => {
+        log('SIM', `League selected: id=${e.target.value}`);
         updateLeagueFavBtn(e.target.value);
         await populateSimSeasonList(e.target.value);
     });
@@ -867,6 +900,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('closeRoundsTabBtn')?.addEventListener('click', e => {
         e.stopPropagation();
+        log('FOOTBALL', 'Tab closed: rounds');
         switchFootballTab('info');
     });
     document.getElementById('tabBtnMatches')?.addEventListener('click', () => {
@@ -883,21 +917,21 @@ document.addEventListener('DOMContentLoaded', () => {
         loadBatchData();
     });
 
-    document.getElementById('simBatchLeaguesAll')?.addEventListener('click', () => setBatchCheckboxes('simBatchLeagueList', true));
-    document.getElementById('simBatchLeaguesClear')?.addEventListener('click', () => setBatchCheckboxes('simBatchLeagueList', false));
-    document.getElementById('simBatchSeasonsAll')?.addEventListener('click', () => setBatchCheckboxes('simBatchSeasonList', true));
-    document.getElementById('simBatchSeasonsClear')?.addEventListener('click', () => setBatchCheckboxes('simBatchSeasonList', false));
-    document.getElementById('simBatchApproachesAll')?.addEventListener('click', () => setBatchCheckboxes('simBatchApproachList', true));
-    document.getElementById('simBatchApproachesClear')?.addEventListener('click', () => setBatchCheckboxes('simBatchApproachList', false));
+    document.getElementById('simBatchLeaguesAll')?.addEventListener('click', () => { log('SIM', 'Batch: select all leagues'); setBatchCheckboxes('simBatchLeagueList', true); });
+    document.getElementById('simBatchLeaguesClear')?.addEventListener('click', () => { log('SIM', 'Batch: clear all leagues'); setBatchCheckboxes('simBatchLeagueList', false); });
+    document.getElementById('simBatchSeasonsAll')?.addEventListener('click', () => { log('SIM', 'Batch: select all seasons'); setBatchCheckboxes('simBatchSeasonList', true); });
+    document.getElementById('simBatchSeasonsClear')?.addEventListener('click', () => { log('SIM', 'Batch: clear all seasons'); setBatchCheckboxes('simBatchSeasonList', false); });
+    document.getElementById('simBatchApproachesAll')?.addEventListener('click', () => { log('SIM', 'Batch: select all approaches'); setBatchCheckboxes('simBatchApproachList', true); });
+    document.getElementById('simBatchApproachesClear')?.addEventListener('click', () => { log('SIM', 'Batch: clear all approaches'); setBatchCheckboxes('simBatchApproachList', false); });
     document.getElementById('tabBtnSimResults')?.addEventListener('click', () => {
         switchFootballTab('simResults');
         populateSimResultsApproachSelect();
     });
-    document.getElementById('simSaveBtn')?.addEventListener('click', saveSimulationResults);
-    document.getElementById('simRunAllBtn')?.addEventListener('click', runAllApproaches);
-    document.getElementById('simCancelBtn')?.addEventListener('click', () => { runAllCancelled = true; });
-    document.getElementById('simResultsLoadBtn')?.addEventListener('click', loadSavedSimulations);
-    document.getElementById('simResultsDeleteBtn')?.addEventListener('click', deleteSimulationResults);
+    document.getElementById('simSaveBtn')?.addEventListener('click', () => { log('SIM', 'Save simulation results clicked'); saveSimulationResults(); });
+    document.getElementById('simRunAllBtn')?.addEventListener('click', () => { log('SIM', 'Run all approaches clicked'); runAllApproaches(); });
+    document.getElementById('simCancelBtn')?.addEventListener('click', () => { log('SIM', 'Cancel run-all clicked'); runAllCancelled = true; });
+    document.getElementById('simResultsLoadBtn')?.addEventListener('click', () => { log('SIM', 'Load saved simulations clicked'); loadSavedSimulations(); });
+    document.getElementById('simResultsDeleteBtn')?.addEventListener('click', () => { log('SIM', 'Delete simulation results clicked'); deleteSimulationResults(); });
 
     document.getElementById('tabBtnSimilar')?.addEventListener('click', e => {
         if (e.target.id === 'closeSimilarTabBtn' || e.target.closest('#closeSimilarTabBtn')) return;
@@ -905,6 +939,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('closeSimilarTabBtn')?.addEventListener('click', e => {
         e.stopPropagation();
+        log('FOOTBALL', 'Tab closed: similar');
         const tabBtn = document.getElementById('tabBtnSimilar');
         if (tabBtn) tabBtn.style.display = 'none';
         switchFootballTab('matches');
@@ -917,6 +952,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('closePredictTabBtn')?.addEventListener('click', e => {
         e.stopPropagation();
+        log('FOOTBALL', 'Tab closed: predict');
         const tabBtn = document.getElementById('tabBtnPredict');
         if (tabBtn) tabBtn.style.display = 'none';
         switchFootballTab('matches');
@@ -927,11 +963,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('closeTicketTabBtn')?.addEventListener('click', e => {
         e.stopPropagation();
+        log('FOOTBALL', 'Tab closed: ticket');
         const tabBtn = document.getElementById('tabBtnTicket');
         if (tabBtn) tabBtn.style.display = 'none';
         switchFootballTab('matches');
     });
     document.getElementById('ticketPrintBtn')?.addEventListener('click', () => {
+        log('FOOTBALL', 'Print ticket clicked');
         const canvas = document.getElementById('ticketCanvas');
         if (!canvas) return;
         const win = window.open('', '_blank');
@@ -1010,24 +1048,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     })();
 
-    document.getElementById('saveMatchesDbBtn')?.addEventListener('click', saveMatchesToDb);
-    document.getElementById('loadMatchesDbBtn')?.addEventListener('click', loadMatchesFromDb);
+    document.getElementById('saveMatchesDbBtn')?.addEventListener('click', () => { log('FOOTBALL', 'Save matches to DB clicked'); saveMatchesToDb(); });
+    document.getElementById('loadMatchesDbBtn')?.addEventListener('click', () => { log('FOOTBALL', 'Load matches from DB clicked'); loadMatchesFromDb(); });
 
     // Round navigation
     document.getElementById('roundPrevBtn')?.addEventListener('click', () => {
         if (currentRound <= 1 || !currentSeasonId) return;
         currentRound--;
+        log('FOOTBALL', `Round nav: prev → round=${currentRound} season=${currentSeasonId}`);
         document.getElementById('roundNumber').textContent = currentRound;
         loadGames(currentSeasonId, currentRound);
     });
     document.getElementById('roundNextBtn')?.addEventListener('click', () => {
         if (!currentSeasonId) return;
         currentRound++;
+        log('FOOTBALL', `Round nav: next → round=${currentRound} season=${currentSeasonId}`);
         document.getElementById('roundNumber').textContent = currentRound;
         loadGames(currentSeasonId, currentRound);
     });
 
     document.getElementById('roundClearBtn')?.addEventListener('click', () => {
+        log('FOOTBALL', 'Round clear: deselected all games');
         selectedGames.length = 0;
         updateMatchesBadge();
         // remove all dynamic inspection tabs and panels
@@ -2363,12 +2404,14 @@ async function openInspection(game, seasonId) {
     // Tab click — switch to this tab
     tabBtn.addEventListener('click', e => {
         if (e.target.dataset.tabid) return; // close btn handled below
+        log('FOOTBALL', `Inspection tab opened: ${game.homeTeamName} vs ${game.awayTeamName}`);
         switchFootballTab(tabId);
     });
 
     // Close button — remove tab + panel, go back to rounds
     tabBtn.querySelector('[data-tabid]').addEventListener('click', e => {
         e.stopPropagation();
+        log('FOOTBALL', `Inspection tab closed: ${game.homeTeamName} vs ${game.awayTeamName}`);
         tabBtn.remove();
         panel.remove();
         switchFootballTab('rounds');
@@ -2762,11 +2805,13 @@ function renderMatchesPanel() {
 
         tr.querySelector('.match-remove-btn').addEventListener('click', e => {
             e.stopPropagation();
+            log('FOOTBALL', `Match removed: ${game.homeTeamName} vs ${game.awayTeamName}`);
             removeSelectedGame(idx);
         });
 
         tr.addEventListener('click', e => {
             if (e.target.closest('.match-remove-btn')) return;
+            log('FOOTBALL', `Match row clicked: ${game.homeTeamName} vs ${game.awayTeamName}`);
             const g = { ...game, teamIdHome: game.teamHomeId, teamIdOut: game.teamOutId };
             openInspection(g, game.seasonId);
         });
@@ -3093,10 +3138,12 @@ async function loadGames(seasonId, round) {
 
                 if (existingIdx >= 0) {
                     // Toggle off — remove from list, no inspection
+                    log('FOOTBALL', `Game deselected: ${game.homeTeamName} vs ${game.awayTeamName} round=${game.round}`);
                     selectedGames.splice(existingIdx, 1);
                     tr.classList.remove('selected');
                 } else {
                     // Toggle on — add to list and open inspection tab
+                    log('FOOTBALL', `Game selected: ${game.homeTeamName} vs ${game.awayTeamName} round=${game.round}`);
                     selectedGames.push({
                         seasonId,
                         teamHomeId:        game.teamIdHome,
@@ -3279,6 +3326,7 @@ async function runSimulationBatch() {
 
                 let round = 1;
                 while (!simBatchCancelled) {
+                    await new Promise(r => setTimeout(r, 0)); // yield — keeps browser responsive
                     setFill(fillRound, Math.min((round / ASSUMED_MAX_ROUNDS) * 100, 95));
                     setInfo(infoRound, `ROUND ${round}`);
                     setFill(fillTotal, (roundsSaved / Math.max(1, totalSeasons * totalApproach * ASSUMED_MAX_ROUNDS)) * 100);
@@ -3301,22 +3349,29 @@ async function runSimulationBatch() {
                     }
                     if (!games.length) break;
 
-                    const gameResults = await Promise.all(games.map(async game => {
-                        const hs = game.homeFullTimeScore, as_ = game.outFullTimeScore;
-                        if (hs == null || as_ == null) return null;
-                        const actual = hs > as_ ? '1' : hs < as_ ? '2' : 'X';
-                        try {
-                            const predRes = await apiFetch(
-                                `${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamIdHome}&awayTeamId=${game.teamIdOut}&seasonId=${season.id}&round=${round}&approach=${approach.index}`,
-                                { headers: { 'accept': '*/*' } }
-                            );
-                            if (!predRes.ok) return { apiError: true };
-                            const pred = await predRes.json();
-                            const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
-                            const predicted = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
-                            return { apiError: false, isCorrect: predicted === actual };
-                        } catch { return { apiError: true }; }
-                    }));
+                    const GAME_CONCURRENCY = 5;
+                    const gameResults = [];
+                    for (let gi = 0; gi < games.length; gi += GAME_CONCURRENCY) {
+                        const chunk = games.slice(gi, gi + GAME_CONCURRENCY);
+                        const chunkResults = await Promise.all(chunk.map(async game => {
+                            const hs = game.homeFullTimeScore, as_ = game.outFullTimeScore;
+                            if (hs == null || as_ == null) return null;
+                            const actual = hs > as_ ? '1' : hs < as_ ? '2' : 'X';
+                            try {
+                                const predRes = await apiFetch(
+                                    `${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamIdHome}&awayTeamId=${game.teamIdOut}&seasonId=${season.id}&round=${round}&approach=${approach.index}`,
+                                    { headers: { 'accept': '*/*' } }
+                                );
+                                if (!predRes.ok) return { apiError: true };
+                                const pred = await predRes.json();
+                                const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
+                                const predicted = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
+                                return { apiError: false, isCorrect: predicted === actual };
+                            } catch { return { apiError: true }; }
+                        }));
+                        gameResults.push(...chunkResults);
+                        await new Promise(r => setTimeout(r, 0)); // yield between chunks
+                    }
 
                     const finished   = gameResults.filter(g => g !== null);
                     totalGamesProcessed += finished.length;
@@ -3377,6 +3432,211 @@ async function runSimulationBatch() {
 
 function cancelSimulationBatch() {
     simBatchCancelled = true;
+    const cancelBtn = document.getElementById('simCancelBtn');
+    if (cancelBtn) { cancelBtn.textContent = '[ CANCELLING... ]'; cancelBtn.disabled = true; }
+}
+
+// ── Catch-up: run a new approach over all already-simulated season/round pairs ─
+
+let catchupCancelled = false;
+let catchupApproachesLoaded = false;
+
+async function loadCatchupApproaches() {
+    if (catchupApproachesLoaded) return;
+    const select = document.getElementById('simCatchupApproachSelect');
+    if (!select) return;
+    select.innerHTML = '<option value="">-- Loading... --</option>';
+    try {
+        const approaches = await loadPredictionApproaches();
+        select.innerHTML = '<option value="">-- Select Approach --</option>';
+        approaches.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a.index;
+            opt.textContent = a.name.toUpperCase();
+            if (a.description) opt.title = a.description;
+            select.appendChild(opt);
+        });
+        select.addEventListener('change', () => {
+            log('SIM', `Catchup approach selected: index=${select.value}`);
+            const btn = document.getElementById('simCatchupBtn');
+            if (btn) btn.disabled = !select.value;
+        });
+        catchupApproachesLoaded = true;
+        log('SIM', `CATCHUP select loaded: ${approaches.length} approaches, disabled=${select.disabled}`);
+    } catch (err) {
+        select.innerHTML = '<option value="">-- ERROR --</option>';
+        log('SIM', 'Failed to load catchup approaches:', err);
+    }
+}
+
+async function runCatchUpApproach() {
+    const select = document.getElementById('simCatchupApproachSelect');
+    const approachIndex = select?.value !== '' ? parseInt(select.value) : null;
+    if (approachIndex === null) { showError('SELECT AN APPROACH'); return; }
+
+    const approaches = cachedApproaches || [];
+    const approach   = approaches.find(a => a.index === approachIndex);
+    const approachName = approach?.name?.toUpperCase() ?? `#${approachIndex}`;
+
+    const runBtn     = document.getElementById('simCatchupBtn');
+    const progressEl = document.getElementById('simAllProgress');
+    const titleEl    = document.getElementById('simAllTitle');
+    const cancelBtn  = document.getElementById('simCancelBtn');
+    const content    = document.getElementById('simulationsContent');
+    const fillSeason = document.getElementById('simFillSeason');
+    const fillRound  = document.getElementById('simFillRound');
+    const fillApproach = document.getElementById('simFillApproach');
+    const fillTotal  = document.getElementById('simFillTotal');
+    const infoSeason = document.getElementById('simInfoSeason');
+    const infoRound  = document.getElementById('simInfoRound');
+    const infoApproach = document.getElementById('simInfoApproach');
+    const infoTotal  = document.getElementById('simInfoTotal');
+
+    const setFill = (el, pct) => { if (el) el.style.width = `${Math.min(pct, 100).toFixed(1)}%`; };
+    const setInfo = (el, txt) => { if (el) el.textContent = txt; };
+
+    catchupCancelled = false;
+    if (runBtn) { runBtn.textContent = '[ RUNNING... ]'; runBtn.disabled = true; }
+    if (progressEl) progressEl.style.display = '';
+    if (cancelBtn) {
+        cancelBtn.style.display = '';
+        cancelBtn.textContent = '[ CANCEL ]';
+        cancelBtn.disabled = false;
+        cancelBtn.onclick = cancelCatchUpApproach;
+    }
+    if (content) content.innerHTML = '<div class="football-placeholder">LOADING EXISTING RESULTS...</div>';
+    [fillSeason, fillRound, fillApproach, fillTotal].forEach(f => setFill(f, 0));
+    [infoSeason, infoRound, infoApproach, infoTotal].forEach(i => setInfo(i, '—'));
+    if (titleEl) titleEl.textContent = 'LOADING COVERAGE...';
+
+    let roundsSaved = 0, saveErrors = 0, fetchErrors = 0, totalGamesProcessed = 0;
+
+    try {
+        // Fetch all existing simulation results to determine covered (seasonId, round) pairs
+        const allRes = await apiFetch(`${getApiBase()}/api/Prediction/simulation`, { headers: { 'accept': '*/*' } });
+        const allResults = allRes.ok ? await allRes.json() : [];
+
+        // Pairs this approach already covers — skip them
+        const doneByThisApproach = new Set(
+            allResults.filter(r => r.approach === approachIndex).map(r => `${r.seasonId}:${r.round}`)
+        );
+
+        // Unique pairs covered by any other approach, excluding already done ones
+        const pairsMap = new Map();
+        allResults.forEach(r => {
+            const key = `${r.seasonId}:${r.round}`;
+            if (!doneByThisApproach.has(key)) pairsMap.set(key, { seasonId: r.seasonId, round: r.round });
+        });
+        const pairs = [...pairsMap.values()];
+
+        if (!pairs.length) {
+            if (titleEl) titleEl.textContent = 'NOTHING TO CATCH UP';
+            if (content) content.innerHTML = `<div class="football-placeholder">ALL ROUNDS ALREADY COVERED FOR ${approachName}</div>`;
+            if (cancelBtn) cancelBtn.style.display = 'none';
+            return;
+        }
+
+        log('SIM', `CATCHUP: ${pairs.length} pairs to process for approach=${approachIndex}`);
+        if (titleEl) titleEl.textContent = `CATCH UP — ${approachName}`;
+        setInfo(infoApproach, approachName);
+        setFill(fillApproach, 100);
+
+        for (let pi = 0; pi < pairs.length; pi++) {
+            if (catchupCancelled) break;
+            await new Promise(r => setTimeout(r, 0)); // yield — keep browser responsive
+
+            const { seasonId, round } = pairs[pi];
+            const pct = (pi / pairs.length) * 100;
+            setFill(fillSeason, pct);
+            setInfo(infoSeason, `${pi + 1} / ${pairs.length}`);
+            setFill(fillRound, pct);
+            setInfo(infoRound, `SEASON ${seasonId} · ROUND ${round}`);
+            setFill(fillTotal, (roundsSaved / Math.max(1, pairs.length)) * 100);
+            setInfo(infoTotal, `${roundsSaved} SAVED${fetchErrors ? ` · ${fetchErrors} FETCH ERR` : ''}${saveErrors ? ` · ${saveErrors} SAVE ERR` : ''}`);
+
+            let games;
+            try {
+                const res = await apiFetch(
+                    `${getApiBase()}/api/Football/seasons/${seasonId}/rounds/${round}/games`,
+                    { headers: { 'accept': '*/*' } }
+                );
+                if (!res.ok) { fetchErrors++; continue; }
+                games = await res.json();
+            } catch {
+                fetchErrors++;
+                continue;
+            }
+            if (!games.length) continue;
+
+            const GAME_CONCURRENCY = 5;
+            const gameResults = [];
+            for (let gi = 0; gi < games.length; gi += GAME_CONCURRENCY) {
+                const chunk = games.slice(gi, gi + GAME_CONCURRENCY);
+                const chunkResults = await Promise.all(chunk.map(async game => {
+                    const hs = game.homeFullTimeScore, as_ = game.outFullTimeScore;
+                    if (hs == null || as_ == null) return null;
+                    const actual = hs > as_ ? '1' : hs < as_ ? '2' : 'X';
+                    try {
+                        const predRes = await apiFetch(
+                            `${getApiBase()}/api/Prediction/predict?homeTeamId=${game.teamIdHome}&awayTeamId=${game.teamIdOut}&seasonId=${seasonId}&round=${round}&approach=${approachIndex}`,
+                            { headers: { 'accept': '*/*' } }
+                        );
+                        if (!predRes.ok) return { apiError: true };
+                        const pred = await predRes.json();
+                        const h = pred.homeWinProbability, d = pred.drawProbability, a = pred.awayWinProbability;
+                        const predicted = pred.predictedResult ?? (h >= d && h >= a ? '1' : d >= a ? 'X' : '2');
+                        return { apiError: false, isCorrect: predicted === actual };
+                    } catch { return { apiError: true }; }
+                }));
+                gameResults.push(...chunkResults);
+                await new Promise(r => setTimeout(r, 0)); // yield between chunks
+            }
+
+            const finished   = gameResults.filter(g => g !== null);
+            totalGamesProcessed += finished.length;
+            const failed     = finished.filter(g => g.apiError).length;
+            const correct    = finished.filter(g => !g.apiError && g.isCorrect).length;
+            const successful = finished.length - failed;
+            const score      = successful > 0 ? correct / successful : 0;
+
+            try {
+                const saveRes = await apiFetch(
+                    `${getApiBase()}/api/Prediction/simulation?seasonId=${seasonId}&round=${round}&approach=${approachIndex}&score=${score}`,
+                    { method: 'POST', headers: { 'accept': '*/*' } }
+                );
+                if (!saveRes.ok && saveRes.status !== 409) throw new Error(`HTTP ${saveRes.status}`);
+                roundsSaved++;
+            } catch (err) {
+                log('SIM', `CATCHUP save failed — season=${seasonId} round=${round}`, err);
+                saveErrors++;
+            }
+        }
+
+        [fillSeason, fillRound, fillTotal].forEach(f => setFill(f, 100));
+        setInfo(infoTotal, `${roundsSaved} SAVED${fetchErrors ? ` · ${fetchErrors} FETCH ERR` : ''}${saveErrors ? ` · ${saveErrors} SAVE ERR` : ''}`);
+        if (cancelBtn) cancelBtn.style.display = 'none';
+
+        if (catchupCancelled) {
+            if (titleEl) titleEl.textContent = `CANCELLED — ${roundsSaved} SAVED`;
+            if (content) content.innerHTML = `<div class="football-placeholder">CANCELLED — ${roundsSaved} ROUNDS SAVED BEFORE STOP</div>`;
+        } else {
+            if (titleEl) titleEl.textContent = `COMPLETE — ${roundsSaved} ROUNDS · ${approachName}`;
+            showSuccess('CATCH UP COMPLETE');
+            if (content) content.innerHTML = `<div class="football-placeholder">${roundsSaved} ROUNDS SAVED FOR ${approachName}${saveErrors ? ` · ${saveErrors} ERRORS` : ''}</div>`;
+        }
+
+    } catch (err) {
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (titleEl) titleEl.textContent = 'ERROR';
+        showError(`CATCH UP FAILED: ${err?.message ?? ''}`);
+        log('SIM', 'Catch up failed:', err);
+    } finally {
+        if (runBtn) { runBtn.textContent = '[ CATCH UP ]'; runBtn.disabled = !select?.value; }
+    }
+}
+
+function cancelCatchUpApproach() {
+    catchupCancelled = true;
     const cancelBtn = document.getElementById('simCancelBtn');
     if (cancelBtn) { cancelBtn.textContent = '[ CANCELLING... ]'; cancelBtn.disabled = true; }
 }

@@ -369,6 +369,13 @@
                     <div class="sim-sidebar-actions">
                         <button class="toolbar-btn sim-run-all-btn sim-sidebar-run-btn" id="simRunBtn" onclick="runSimulationBatch()" disabled>[ RUN SIMULATION ]</button>
                     </div>
+                    <div class="sim-sidebar-actions sim-catchup-section">
+                        <div class="football-dropdown-label sim-catchup-label">CATCH UP NEW APPROACH</div>
+                        <select class="football-select sim-catchup-select" id="simCatchupApproachSelect">
+                            <option value="">-- Select Approach --</option>
+                        </select>
+                        <button class="toolbar-btn sim-catchup-btn sim-sidebar-run-btn" id="simCatchupBtn" onclick="runCatchUpApproach()" disabled>[ CATCH UP ]</button>
+                    </div>
                 </div>
                 <div class="football-resizer" id="simResizer"></div>
                 <div class="football-area">
